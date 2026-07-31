@@ -1,0 +1,10 @@
+{
+  "name": "top10-geo-webapp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Serverless API for the Top 10 Geo quiz (Vercel + Supabase + Stripe).",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "stripe": "^16.12.0"
+  }
+}

@@ -1,0 +1,2217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Top 10 Geo — Daily Geography Trivia</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --bg:#0f172a;
+    --bg-soft:#111c34;
+    --card:#16213e;
+    --card-2:#1b2a4a;
+    --accent:#38bdf8;
+    --accent-2:#22d3ee;
+    --gold:#fbbf24;
+    --green:#34d399;
+    --red:#f87171;
+    --text:#e2e8f0;
+    --text-dim:#94a3b8;
+    --border:#26375c;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:radial-gradient(circle at top, #17264a 0%, var(--bg) 60%);
+    color:var(--text);
+    min-height:100vh;
+  }
+  .app{
+    max-width:520px;
+    margin:0 auto;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding-bottom:40px;
+  }
+  header.top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:18px 20px;
+    position:sticky;
+    top:0;
+    background:rgba(15,23,42,0.9);
+    backdrop-filter:blur(6px);
+    z-index:10;
+    border-bottom:1px solid var(--border);
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-weight:700;
+    font-size:18px;
+    cursor:pointer;
+  }
+  .brand .globe{font-size:22px;}
+  .stat-pills{display:flex;gap:8px;}
+  .pill{
+    background:var(--card-2);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:5px 10px;
+    font-size:13px;
+    display:flex;
+    align-items:center;
+    gap:4px;
+    white-space:nowrap;
+  }
+  .pill.gold{color:var(--gold);}
+  main{padding:18px 20px;flex:1;}
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:20px;
+    margin-bottom:16px;
+  }
+  .card h2{margin:0 0 6px;font-size:18px;}
+  .card p.sub{color:var(--text-dim);font-size:14px;margin:0 0 14px;line-height:1.5;}
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    border:none;
+    border-radius:12px;
+    padding:12px 18px;
+    font-size:15px;
+    font-weight:600;
+    cursor:pointer;
+    transition:transform .1s ease, opacity .15s ease;
+  }
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#04202e;}
+  .btn-gold{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#3a2400;}
+  .btn-outline{background:transparent;border:1px solid var(--border);color:var(--text);}
+  .btn-block{width:100%;}
+  .btn[disabled]{opacity:.45;cursor:not-allowed;}
+  .row{display:flex;gap:10px;}
+  .badge{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    font-weight:700;
+    padding:3px 8px;
+    border-radius:999px;
+    display:inline-block;
+  }
+  .badge.easy{background:rgba(52,211,153,.15);color:var(--green);}
+  .badge.medium{background:rgba(251,191,36,.15);color:var(--gold);}
+  .badge.hard{background:rgba(248,113,113,.15);color:var(--red);}
+  .badge.expert{background:rgba(167,139,250,.15);color:#a78bfa;}
+  .badge.locked{background:rgba(148,163,184,.15);color:var(--text-dim);}
+  .duel-card{
+    flex:1;
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:14px;
+    text-align:center;
+    background:var(--card-2);
+  }
+  .duel-card.winner{border-color:var(--gold);background:rgba(251,191,36,.08);}
+  .duel-score{font-size:28px;font-weight:800;margin:4px 0;}
+  .nav-tabs{display:flex;gap:8px;margin-bottom:16px;}
+  .nav-tabs button{
+    flex:1;
+    background:var(--card-2);
+    border:1px solid var(--border);
+    color:var(--text-dim);
+    padding:10px;
+    border-radius:12px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .nav-tabs button.active{background:var(--accent);color:#04202e;border-color:var(--accent);}
+  .cat-list{display:flex;flex-direction:column;gap:10px;}
+  .cat-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:var(--card-2);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:14px;
+    cursor:pointer;
+  }
+  .cat-item.locked{opacity:.55;cursor:default;}
+  .cat-item .name{font-size:14px;font-weight:600;}
+  .lives{display:flex;gap:4px;font-size:18px;}
+  .life.lost{opacity:.25;filter:grayscale(1);}
+  .slots{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:8px;
+    margin:16px 0;
+  }
+  .slot{
+    background:var(--card-2);
+    border:1px dashed var(--border);
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:13px;
+    min-height:20px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .slot.filled{
+    border-style:solid;
+    border-color:var(--green);
+    background:rgba(52,211,153,.08);
+    font-weight:600;
+  }
+  .slot .rank{
+    color:var(--text-dim);
+    font-weight:700;
+    min-width:18px;
+  }
+  .slot.filled .rank{color:var(--green);}
+  .guess-row{display:flex;gap:8px;margin-top:10px;}
+  input[type=text]{
+    flex:1;
+    background:var(--card-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:12px;
+    padding:12px 14px;
+    font-size:15px;
+    outline:none;
+  }
+  input[type=text]:focus{border-color:var(--accent);}
+  .feedback{
+    margin-top:10px;
+    font-size:14px;
+    min-height:20px;
+    font-weight:600;
+  }
+  .feedback.ok{color:var(--green);}
+  .feedback.bad{color:var(--red);}
+  .progress-bar{
+    height:6px;
+    background:var(--card-2);
+    border-radius:999px;
+    overflow:hidden;
+    margin-top:10px;
+  }
+  .progress-bar > div{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));}
+  .fact-box{
+    background:rgba(56,189,248,.08);
+    border:1px solid rgba(56,189,248,.25);
+    border-radius:12px;
+    padding:12px 14px;
+    font-size:13px;
+    color:var(--text-dim);
+    margin-top:14px;
+  }
+  .fact-box b{color:var(--accent);}
+  .lock-overlay{
+    text-align:center;
+    padding:30px 10px;
+  }
+  .lock-overlay .icon{font-size:34px;margin-bottom:6px;}
+  .plans{display:flex;flex-direction:column;gap:12px;margin:16px 0;}
+  .plan{
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:16px;
+    background:var(--card-2);
+  }
+  .plan.featured{border-color:var(--gold);background:rgba(251,191,36,.06);}
+  .plan .price{font-size:22px;font-weight:800;margin:2px 0 8px;}
+  .plan .price span{font-size:13px;color:var(--text-dim);font-weight:500;}
+  .plan ul{margin:0;padding-left:18px;font-size:13px;color:var(--text-dim);line-height:1.7;}
+  footer.note{
+    text-align:center;
+    font-size:11px;
+    color:var(--text-dim);
+    padding:14px 20px 0;
+  }
+  .center{text-align:center;}
+  .hidden{display:none !important;}
+  .streak-line{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-dim);margin-bottom:12px;}
+  .divider{height:1px;background:var(--border);margin:16px 0;}
+  .toast{
+    position:fixed;
+    bottom:20px;
+    left:50%;
+    transform:translateX(-50%);
+    background:var(--card-2);
+    border:1px solid var(--accent);
+    color:var(--text);
+    padding:10px 18px;
+    border-radius:999px;
+    font-size:13px;
+    z-index:50;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .25s ease;
+  }
+  .toast.show{opacity:1;}
+  .pill.mute-btn{cursor:pointer;user-select:none;}
+  .guess-wrap{position:relative;}
+  .suggestions{
+    position:absolute;
+    top:calc(100% + 6px);
+    left:0;
+    right:0;
+    background:var(--card-2);
+    border:1px solid var(--border);
+    border-radius:12px;
+    overflow:hidden;
+    z-index:20;
+    box-shadow:0 10px 24px rgba(0,0,0,.35);
+  }
+  .suggestions .sug-item{
+    padding:10px 14px;
+    font-size:14px;
+    cursor:pointer;
+    border-bottom:1px solid var(--border);
+  }
+  .suggestions .sug-item:last-child{border-bottom:none;}
+  .suggestions .sug-item:hover, .suggestions .sug-item.active{background:rgba(56,189,248,.12);}
+  .hint-row{display:flex;gap:8px;margin-top:10px;}
+  .ad-free-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    font-size:12px;
+    color:var(--green);
+    background:rgba(52,211,153,.1);
+    border:1px solid rgba(52,211,153,.3);
+    padding:4px 10px;
+    border-radius:999px;
+    margin-top:8px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand" onclick="goHome()"><span class="globe">🌍</span> Top 10 Geo</div>
+    <div class="stat-pills">
+      <div class="pill">🔥 <span id="pillStreak">0</span></div>
+      <div class="pill gold">★ <span id="pillScore">0</span></div>
+      <div class="pill" id="pillPremium">Free</div>
+      <div class="pill mute-btn" id="muteBtn" onclick="toggleMute()">🔊</div>
+    </div>
+  </header>
+
+  <main id="main"></main>
+
+  <footer class="note">Prototype build · answer data is illustrative and simplified for gameplay, not a cited reference source.<br>Questions or feedback? <a href="mailto:auranandreas@gmail.com" style="color:var(--accent);">auranandreas@gmail.com</a></footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   QUESTION BANK
+   26 "Top 10" geography rounds. Order of items reflects a
+   real-world ranking where one exists (ranked:true); for
+   "name any 10 of these" style rounds (ranked:false) order
+   doesn't matter for scoring.
+   ========================================================= */
+const QUESTIONS = [
+  {
+    id: 1, difficulty: "easy", ranked: true, icon: "🗺️",
+    title: "Largest countries in the world",
+    prompt: "Name the top 10 largest countries in the world by land area.",
+    fact: "Russia alone spans 11 time zones — nearly twice the next largest country, Canada.",
+    answers: ["Russia","Canada","United States","China","Brazil","Australia","India","Argentina","Kazakhstan","Algeria"]
+  },
+  {
+    id: 2, difficulty: "medium", ranked: true, icon: "🔎",
+    title: "Smallest countries in the world",
+    prompt: "Name the top 10 smallest sovereign countries in the world by land area.",
+    fact: "Vatican City is smaller than most golf courses — just 0.49 km².",
+    answers: ["Vatican City","Monaco","Nauru","Tuvalu","San Marino","Liechtenstein","Marshall Islands","Saint Kitts and Nevis","Maldives","Malta"]
+  },
+  {
+    id: 3, difficulty: "easy", ranked: true, icon: "👥",
+    title: "Most populous countries",
+    prompt: "Name the top 10 most populous countries in the world.",
+    fact: "India overtook China as the world's most populous country in 2023.",
+    answers: ["India","China","United States","Indonesia","Pakistan","Nigeria","Brazil","Bangladesh","Russia","Ethiopia"]
+  },
+  {
+    id: 4, difficulty: "medium", ranked: true, icon: "🧍",
+    title: "Least populous countries",
+    prompt: "Name the top 10 least populous sovereign countries in the world.",
+    fact: "Vatican City has fewer permanent residents than a typical school.",
+    answers: ["Vatican City","Tuvalu","Nauru","Palau","San Marino","Liechtenstein","Monaco","Marshall Islands","Saint Kitts and Nevis","Dominica"]
+  },
+  {
+    id: 5, difficulty: "medium", ranked: true, icon: "🌾",
+    title: "Lowest population density",
+    prompt: "Name the top 10 countries with the lowest population density.",
+    fact: "Mongolia averages roughly 2 people per km² — most of the country is steppe and desert.",
+    answers: ["Mongolia","Namibia","Australia","Iceland","Suriname","Guyana","Libya","Botswana","Canada","Mauritania"]
+  },
+  {
+    id: 6, difficulty: "hard", ranked: true, icon: "🧭",
+    title: "Most land borders",
+    prompt: "Name the top 10 countries with the most land borders (neighboring countries).",
+    fact: "Russia and China are tied for the most neighbors, each bordering 14 other countries.",
+    answers: ["Russia","China","Brazil","Democratic Republic of the Congo","Germany","Austria","France","Tanzania","Turkey","Zambia"]
+  },
+  {
+    id: 7, difficulty: "medium", ranked: true, icon: "🏖️",
+    title: "Longest coastlines",
+    prompt: "Name the top 10 countries with the longest coastlines.",
+    fact: "Canada's coastline stretches over 200,000 km — more than 5 times around the Earth's equator.",
+    answers: ["Canada","Indonesia","Russia","Philippines","Japan","Australia","Norway","United States","New Zealand","China"]
+  },
+  {
+    id: 8, difficulty: "hard", ranked: true, icon: "🏞️",
+    title: "Largest landlocked countries",
+    prompt: "Name the top 10 largest landlocked countries (no ocean coastline) by area.",
+    fact: "Kazakhstan is the largest country in the world with no coastline at all.",
+    answers: ["Kazakhstan","Mongolia","Chad","Niger","Mali","Ethiopia","Bolivia","Zambia","Afghanistan","Central African Republic"]
+  },
+  {
+    id: 9, difficulty: "medium", ranked: true, icon: "🌋",
+    title: "Most volcanoes",
+    prompt: "Name the top 10 countries with the most volcanoes.",
+    fact: "Indonesia sits on the Pacific 'Ring of Fire' and is home to well over 100 volcanoes.",
+    answers: ["Indonesia","United States","Japan","Russia","Chile","Ethiopia","Philippines","Papua New Guinea","Mexico","Guatemala"]
+  },
+  {
+    id: 10, difficulty: "hard", ranked: true, icon: "🗣️",
+    title: "Most languages spoken",
+    prompt: "Name the top 10 countries with the greatest number of languages spoken.",
+    fact: "Papua New Guinea is home to over 800 living languages — more than any other country on Earth.",
+    answers: ["Papua New Guinea","Indonesia","Nigeria","India","United States","China","Mexico","Cameroon","Australia","Democratic Republic of the Congo"]
+  },
+  {
+    id: 11, difficulty: "medium", ranked: true, icon: "🏛️",
+    title: "Most UNESCO World Heritage Sites",
+    prompt: "Name the top 10 countries with the most UNESCO World Heritage Sites.",
+    fact: "Italy and China have spent years trading the #1 and #2 spots for most World Heritage Sites.",
+    answers: ["Italy","China","Germany","France","Spain","India","Mexico","United Kingdom","Iran","Japan"]
+  },
+  {
+    id: 12, difficulty: "easy", ranked: true, icon: "🏙️",
+    title: "Most skyscrapers",
+    prompt: "Name the top 10 countries with the most skyscrapers (150m and taller).",
+    fact: "China has roughly four times as many 150m+ skyscrapers as the United States, which ranks second.",
+    answers: ["China","United States","United Arab Emirates","Malaysia","Japan","South Korea","Canada","Australia","Indonesia","Thailand"]
+  },
+  {
+    id: 13, difficulty: "hard", ranked: true, icon: "⛰️",
+    title: "Highest-elevation capital cities",
+    prompt: "Name the 10 countries whose capital cities sit at the highest elevation.",
+    fact: "La Paz, Bolivia sits roughly 3,640 m above sea level — high enough that visitors often need time to adjust.",
+    answers: ["Bolivia","Ecuador","Colombia","Eritrea","Bhutan","Yemen","Ethiopia","Kenya","Rwanda","Afghanistan"]
+  },
+  {
+    id: 14, difficulty: "medium", ranked: false, icon: "🌐",
+    title: "Countries on the Equator",
+    prompt: "Name 10 countries that the Equator physically passes through.",
+    fact: "The Equator passes through 13 countries across three continents (and one ocean-only stretch).",
+    answers: ["São Tomé and Príncipe","Gabon","Republic of the Congo","Democratic Republic of the Congo","Uganda","Kenya","Indonesia","Ecuador","Colombia","Brazil"]
+  },
+  {
+    id: 15, difficulty: "easy", ranked: true, icon: "🏔️",
+    title: "Tallest mountains in the world",
+    prompt: "Name the top 10 tallest mountains in the world.",
+    fact: "All 14 of the world's peaks above 8,000m sit in just two ranges: the Himalayas and the Karakoram.",
+    answers: ["Mount Everest","K2","Kangchenjunga","Lhotse","Makalu","Cho Oyu","Dhaulagiri","Manaslu","Nanga Parbat","Annapurna"]
+  },
+  {
+    id: 16, difficulty: "easy", ranked: true, icon: "🌊",
+    title: "Longest rivers in the world",
+    prompt: "Name the top 10 longest rivers in the world.",
+    fact: "The Nile and the Amazon are still debated for the title of the world's longest river.",
+    answers: ["Nile","Amazon","Yangtze","Mississippi-Missouri","Yenisei","Yellow River","Ob-Irtysh","Río de la Plata-Paraná","Congo","Amur"]
+  },
+  {
+    id: 17, difficulty: "medium", ranked: true, icon: "🏜️",
+    title: "Largest deserts in the world",
+    prompt: "Name the top 10 largest deserts in the world.",
+    fact: "Technically, Antarctica is the largest desert on Earth — deserts are defined by low precipitation, not heat.",
+    answers: ["Antarctic Desert","Arctic Desert","Sahara Desert","Arabian Desert","Gobi Desert","Kalahari Desert","Patagonian Desert","Great Victoria Desert","Syrian Desert","Great Basin Desert"]
+  },
+  {
+    id: 18, difficulty: "medium", ranked: true, icon: "💧",
+    title: "Largest lakes in the world",
+    prompt: "Name the top 10 largest lakes in the world by surface area.",
+    fact: "The Caspian Sea is so big it's classified as the world's largest lake — bigger than the whole of Germany.",
+    answers: ["Caspian Sea","Lake Superior","Lake Victoria","Lake Huron","Lake Michigan","Lake Tanganyika","Lake Baikal","Great Bear Lake","Lake Malawi","Great Slave Lake"]
+  },
+  {
+    id: 19, difficulty: "easy", ranked: true, icon: "🏝️",
+    title: "Largest islands in the world",
+    prompt: "Name the top 10 largest islands in the world.",
+    fact: "Greenland is the world's largest island — Australia is bigger, but it counts as a continent, not an island.",
+    answers: ["Greenland","New Guinea","Borneo","Madagascar","Baffin Island","Sumatra","Honshu","Great Britain","Victoria Island","Ellesmere Island"]
+  },
+  {
+    id: 20, difficulty: "hard", ranked: true, icon: "⚓",
+    title: "Largest maritime territory (EEZ)",
+    prompt: "Name the top 10 countries with the largest Exclusive Economic Zones (maritime territory).",
+    fact: "France has the largest maritime territory on Earth, thanks to its scattered overseas island territories.",
+    answers: ["France","United States","Australia","Russia","United Kingdom","Indonesia","Canada","Japan","Kiribati","New Zealand"]
+  },
+  {
+    id: 21, difficulty: "hard", ranked: true, icon: "❄️",
+    title: "Northernmost national capitals",
+    prompt: "Name the 10 countries with the northernmost national capital cities.",
+    fact: "Reykjavik, Iceland is the world's northernmost national capital.",
+    answers: ["Iceland","Norway","Finland","Estonia","Sweden","Latvia","Russia","Canada","Denmark","Lithuania"]
+  },
+  {
+    id: 22, difficulty: "hard", ranked: true, icon: "🐧",
+    title: "Southernmost national capitals",
+    prompt: "Name the 10 countries with the southernmost national capital cities.",
+    fact: "Wellington, New Zealand is the world's southernmost national capital.",
+    answers: ["New Zealand","Australia","Uruguay","Argentina","Chile","South Africa","Paraguay","Namibia","Botswana","Fiji"]
+  },
+  {
+    id: 23, difficulty: "medium", ranked: true, icon: "🌴",
+    title: "Largest island nations",
+    prompt: "Name the top 10 largest countries made up primarily of islands, by total area.",
+    fact: "Indonesia is the world's largest archipelago nation, made up of more than 17,000 islands.",
+    answers: ["Indonesia","Madagascar","Papua New Guinea","Japan","Philippines","New Zealand","United Kingdom","Cuba","Iceland","Sri Lanka"]
+  },
+  {
+    id: 24, difficulty: "medium", ranked: false, icon: "⛵",
+    title: "Mediterranean Sea coastline",
+    prompt: "Name 10 countries with a coastline on the Mediterranean Sea.",
+    fact: "21 countries border the Mediterranean Sea, spanning Europe, Africa, and Asia.",
+    answers: ["Spain","France","Italy","Greece","Turkey","Egypt","Libya","Tunisia","Algeria","Morocco"]
+  },
+  {
+    id: 25, difficulty: "easy", ranked: false, icon: "🌏",
+    title: "Pacific Ocean coastline",
+    prompt: "Name 10 countries with a coastline on the Pacific Ocean.",
+    fact: "The Pacific is the largest and deepest ocean on Earth, bordered by more countries than any other.",
+    answers: ["United States","Canada","Mexico","Chile","Peru","Japan","China","Russia","Australia","Philippines"]
+  },
+  {
+    id: 26, difficulty: "easy", ranked: false, icon: "🌎",
+    title: "Atlantic Ocean coastline",
+    prompt: "Name 10 countries with a coastline on the Atlantic Ocean.",
+    fact: "The Atlantic Ocean takes its name from Atlas, the Titan of Greek mythology.",
+    answers: ["United States","Canada","Brazil","Argentina","United Kingdom","France","Spain","Portugal","Nigeria","South Africa"]
+  },
+  {
+    id: 27, difficulty: "medium", ranked: true, icon: "🌳",
+    title: "Largest forest area",
+    prompt: "Name the top 10 countries with the largest forest area.",
+    fact: "Russia alone holds roughly a fifth of the world's forest cover — more than Brazil and Canada combined. (FAO Global Forest Resources Assessment, 2025)",
+    answers: ["Russia","Brazil","Canada","United States","China","Democratic Republic of the Congo","Indonesia","Peru","Australia","India"]
+  },
+  {
+    id: 28, difficulty: "medium", ranked: true, icon: "🌧️",
+    title: "Wettest countries in the world",
+    prompt: "Name the top 10 wettest countries in the world by average annual rainfall.",
+    fact: "Colombia averages around 3,240mm of rain a year — nearly 180 times more than the world's driest country, Egypt.",
+    answers: ["Colombia","São Tomé and Príncipe","Papua New Guinea","Solomon Islands","Panama","Indonesia","Bangladesh","Sierra Leone","Brunei","Costa Rica"]
+  },
+  {
+    id: 29, difficulty: "medium", ranked: true, icon: "☀️",
+    title: "Driest countries in the world",
+    prompt: "Name the top 10 driest countries in the world by average annual rainfall.",
+    fact: "Egypt receives roughly 18mm of rain a year on average — most of it evaporates before it ever reaches the ground.",
+    answers: ["Egypt","Libya","Qatar","United Arab Emirates","Bahrain","Algeria","Mauritania","Jordan","Saudi Arabia","Sudan"]
+  },
+  {
+    id: 30, difficulty: "hard", ranked: false, icon: "⬇️",
+    title: "Countries with land below sea level",
+    prompt: "Name 10 countries that contain land below sea level.",
+    fact: "The shore of the Dead Sea, bordering Jordan, Israel, and Palestine, is the lowest exposed land on Earth at over 430m below sea level.",
+    answers: ["Netherlands","Djibouti","Egypt","Jordan","Israel","Azerbaijan","Kazakhstan","China","United States","Australia"]
+  },
+  {
+    id: 31, difficulty: "hard", ranked: false, icon: "🌉",
+    title: "Transcontinental countries",
+    prompt: "Name 10 countries commonly considered transcontinental (spanning more than one continent).",
+    fact: "Russia is the most transcontinental country of all — most of its land lies in Asia, but most of its population lives in the European part.",
+    answers: ["Russia","Turkey","Kazakhstan","Azerbaijan","Georgia","Egypt","Indonesia","Panama","Spain","France"]
+  },
+  {
+    id: 32, difficulty: "medium", ranked: true, icon: "🧂",
+    title: "Largest salt flats in the world",
+    prompt: "Name the top 10 largest salt flats in the world.",
+    fact: "Bolivia's Salar de Uyuni is the world's largest salt flat — flat enough that satellites are calibrated against it.",
+    answers: ["Salar de Uyuni","Salar de Coipasa","Bonneville Salt Flats","Etosha Pan","Makgadikgadi Pan","Chott el Djerid","Rann of Kutch","Lake Eyre","Salinas Grandes","Dasht-e Kavir"]
+  },
+  {
+    id: 33, difficulty: "hard", ranked: true, icon: "🗻",
+    title: "Longest mountain ranges in the world",
+    prompt: "Name the top 10 longest mountain ranges in the world.",
+    fact: "The Andes stretch roughly 7,000km down the west coast of South America — the longest continental mountain range on Earth.",
+    answers: ["Andes","Rocky Mountains","Great Dividing Range","Trans-Antarctic Mountains","Himalayas","Ural Mountains","Atlas Mountains","Brooks Range","Zagros Mountains","Hindu Kush"]
+  },
+  {
+    id: 34, difficulty: "medium", ranked: true, icon: "🌀",
+    title: "Largest rivers by water flow",
+    prompt: "Name the top 10 largest rivers in the world by discharge (water volume).",
+    fact: "The Amazon discharges more water than the next several largest rivers combined — roughly a fifth of all river water on Earth.",
+    answers: ["Amazon","Congo","Ganges-Brahmaputra","Yangtze","Orinoco","Mississippi","Yenisei","Lena","Paraná","Mekong"]
+  },
+  {
+    id: 35, difficulty: "medium", ranked: true, icon: "🤿",
+    title: "Deepest lakes in the world",
+    prompt: "Name the top 10 deepest lakes in the world.",
+    fact: "Lake Baikal in Russia is both the deepest and the oldest lake on Earth — it holds about a fifth of the world's unfrozen fresh water.",
+    answers: ["Lake Baikal","Lake Tanganyika","Caspian Sea","O'Higgins-San Martín","Lake Malawi","Issyk-Kul","Great Slave Lake","Crater Lake","Lake Matano","Lake Toba"]
+  },
+  {
+    id: 36, difficulty: "hard", ranked: true, icon: "🥾",
+    title: "Highest average elevation by country",
+    prompt: "Name the top 10 countries with the highest average elevation.",
+    fact: "Every square meter of Lesotho sits above 1,000m — it's the only country entirely above that elevation.",
+    answers: ["Bhutan","Lesotho","Kyrgyzstan","Tajikistan","Nepal","Andorra","Rwanda","Ethiopia","Bolivia","Armenia"]
+  },
+  {
+    id: 37, difficulty: "medium", ranked: true, icon: "✈️",
+    title: "Busiest airports in the world",
+    prompt: "Name the top 10 busiest airports in the world by passenger traffic.",
+    fact: "Hartsfield-Jackson Atlanta has been the world's busiest airport for most of the last two decades, largely thanks to Delta's massive hub operation there. (2025 traffic figures)",
+    answers: ["Hartsfield-Jackson Atlanta","Dubai International","Tokyo Haneda","Dallas/Fort Worth","Shanghai Pudong","Chicago O'Hare","London Heathrow","Istanbul Airport","Guangzhou Baiyun","Denver International"]
+  },
+  {
+    id: 38, difficulty: "easy", ranked: true, icon: "🌆",
+    title: "Largest urban areas in the world",
+    prompt: "Name the top 10 largest urban areas in the world by population.",
+    fact: "Tokyo's greater metropolitan area is home to well over 30 million people — roughly the population of Australia packed into one urban region.",
+    answers: ["Tokyo","Delhi","Shanghai","Dhaka","Jakarta","Guangzhou","Mumbai","Manila","Mexico City","Seoul"]
+  },
+  {
+    id: 39, difficulty: "easy", ranked: true, icon: "🥇",
+    title: "Most Olympic gold medals (all-time)",
+    prompt: "Name the top 10 countries with the most Olympic gold medals of all time.",
+    fact: "The United States has won over 1,100 Olympic golds — more than triple the next country on the list.",
+    answers: ["United States","Soviet Union","Great Britain","China","Germany","France","Italy","Japan","Hungary","Australia"]
+  },
+  {
+    id: 40, difficulty: "medium", ranked: true, icon: "💰",
+    title: "Most billionaires by country",
+    prompt: "Name the top 10 countries with the most billionaires.",
+    fact: "The United States is home to over 900 billionaires — more than the next several countries on this list combined. (Forbes, 2025)",
+    answers: ["United States","China","India","Germany","Russia","Canada","Italy","Hong Kong","Brazil","United Kingdom"]
+  },
+  {
+    id: 41, difficulty: "easy", ranked: true, icon: "🍔",
+    title: "Most McDonald's restaurants by country",
+    prompt: "Name the top 10 countries with the most McDonald's restaurants.",
+    fact: "The United States has over 13,000 McDonald's locations — roughly double the number in China, which ranks second.",
+    answers: ["United States","China","Japan","France","Canada","United Kingdom","Germany","Brazil","Australia","Philippines"]
+  },
+  {
+    id: 42, difficulty: "medium", ranked: true, icon: "☕",
+    title: "Highest coffee consumption per capita",
+    prompt: "Name the top 10 countries with the highest coffee consumption per person.",
+    fact: "Finland drinks more coffee per person than anywhere else on Earth — commonly cited at around 4 cups a day per capita, including children.",
+    answers: ["Finland","Norway","Iceland","Denmark","Netherlands","Sweden","Switzerland","Belgium","Luxembourg","Canada"]
+  },
+  {
+    id: 43, difficulty: "medium", ranked: false, icon: "🎉",
+    title: "Countries with the most public holidays",
+    prompt: "Name 10 countries known for having an especially high number of public holidays each year.",
+    fact: "Exact counts vary by source and year, but Nepal, Myanmar, and Bangladesh consistently rank among the countries with the most official public holidays — often 25-plus a year.",
+    answers: ["Nepal","Myanmar","Bangladesh","Sri Lanka","Iran","India","Cambodia","Colombia","Philippines","Thailand"]
+  },
+  {
+    id: 44, difficulty: "hard", ranked: true, icon: "🍽️",
+    title: "Most Michelin-starred restaurants by country",
+    prompt: "Name the top 10 countries with the most Michelin-starred restaurants.",
+    fact: "France still leads the Michelin count worldwide, but Tokyo alone has more starred restaurants than any other single city on Earth.",
+    answers: ["France","Japan","Italy","Germany","Spain","United States","United Kingdom","Switzerland","China","Canada"]
+  },
+  {
+    id: 45, difficulty: "expert", ranked: false, icon: "🎤",
+    title: "Most Eurovision Song Contest wins",
+    prompt: "Name 10 countries among the all-time leaders for Eurovision Song Contest wins.",
+    fact: "Ireland and Sweden are tied for the most Eurovision wins ever, with 7 victories apiece.",
+    answers: ["Ireland","Sweden","United Kingdom","France","Netherlands","Luxembourg","Norway","Denmark","Italy","Ukraine"]
+  },
+  {
+    id: 46, difficulty: "expert", ranked: false, icon: "🚗",
+    title: "Countries that drive on the left",
+    prompt: "Name 10 countries where traffic drives on the left side of the road.",
+    fact: "Roughly a third of the world's countries drive on the left — many of them former British territories.",
+    answers: ["United Kingdom","Ireland","Japan","Australia","New Zealand","India","South Africa","Thailand","Indonesia","Malaysia"]
+  },
+  {
+    id: 47, difficulty: "expert", ranked: false, icon: "⚽",
+    title: "Countries that reached a FIFA World Cup final",
+    prompt: "Name 10 countries that have played in a FIFA World Cup final.",
+    fact: "Only 8 countries have ever won the World Cup, but many more have made it all the way to the final and lost.",
+    answers: ["Brazil","Germany","Argentina","Italy","France","Uruguay","Netherlands","Czechoslovakia","Hungary","Sweden"]
+  },
+  {
+    id: 48, difficulty: "expert", ranked: false, icon: "🏅",
+    title: "Most Nobel Prize laureates by country",
+    prompt: "Name the top 10 countries with the most Nobel Prize laureates of all time.",
+    fact: "The United States alone accounts for over 400 Nobel laureates — more than the next several countries on this list combined.",
+    answers: ["United States","United Kingdom","Germany","France","Sweden","Russia","Japan","Switzerland","Austria","Netherlands"]
+  },
+  {
+    id: 49, difficulty: "expert", ranked: true, icon: "🍺",
+    title: "Most breweries by country",
+    prompt: "Name the top 10 countries with the most breweries.",
+    fact: "The United States went from fewer than 100 breweries in 1978 to well over 10,000 today.",
+    answers: ["United States","United Kingdom","France","Italy","Russia","Canada","Switzerland","Germany","Brazil","Japan"]
+  },
+  {
+    id: 50, difficulty: "expert", ranked: false, icon: "🏎️",
+    title: "Countries with an F1 Drivers' World Champion",
+    prompt: "Name 10 countries that have produced a Formula 1 Drivers' World Champion.",
+    fact: "The United Kingdom has produced more F1 World Champions than any other country, including Lewis Hamilton's record-tying 7 titles.",
+    answers: ["United Kingdom","Germany","Brazil","France","Argentina","Finland","Austria","Italy","Australia","Spain"]
+  },
+  {
+    id: 51, difficulty: "expert", ranked: true, icon: "⚛️",
+    title: "Most nuclear power reactors by country",
+    prompt: "Name the top 10 countries with the most operable nuclear power reactors.",
+    fact: "The United States operates roughly 94 nuclear reactors — nearly double the next closest country. (2025 figures)",
+    answers: ["United States","France","China","South Korea","India","Ukraine","Spain","Sweden","Slovakia","United Arab Emirates"]
+  },
+  {
+    id: 52, difficulty: "expert", ranked: false, icon: "⛷️",
+    title: "Most Winter Olympics gold medals",
+    prompt: "Name 10 countries among the all-time leaders for Winter Olympics gold medals.",
+    fact: "Norway has won more Winter Olympics golds than any other country by a wide margin, dominating cross-country skiing, ski jumping, and biathlon.",
+    answers: ["Norway","United States","Germany","Soviet Union","Austria","Canada","Sweden","Switzerland","Russia","Finland"]
+  },
+
+  /* ---- General Knowledge (Premium-exclusive, not geography) ---- */
+  {
+    id: 53, difficulty: "easy", ranked: true, icon: "🎬", topic: "general",
+    title: "Highest-grossing movies of all time",
+    prompt: "Name the top 10 highest-grossing movies of all time (worldwide box office, unadjusted for inflation).",
+    fact: "Avatar (2009) has held the all-time box office crown for most of the last decade, though the chart reshuffles almost every year as new blockbusters open.",
+    answers: ["Avatar","Avengers: Endgame","Avatar: The Way of Water","Titanic","Star Wars: The Force Awakens","Avengers: Infinity War","Spider-Man: No Way Home","Inside Out 2","Jurassic World","The Lion King"]
+  },
+  {
+    id: 54, difficulty: "medium", ranked: false, icon: "🎵", topic: "general",
+    title: "Best-selling music artists of all time",
+    prompt: "Name 10 artists commonly cited among the best-selling music acts of all time.",
+    fact: "Rankings vary a lot by methodology (certified units vs. estimated sales vs. streaming), but The Beatles and Elvis Presley top almost every version of this list.",
+    answers: ["The Beatles","Elvis Presley","Michael Jackson","Madonna","Elton John","Rihanna","Whitney Houston","Led Zeppelin","Pink Floyd","Mariah Carey"]
+  },
+  {
+    id: 55, difficulty: "hard", ranked: false, icon: "🏆", topic: "general",
+    title: "Most Grammy Awards won by an artist",
+    prompt: "Name 10 artists among the all-time leaders for individual Grammy Award wins.",
+    fact: "Beyoncé holds the all-time record for most Grammy wins by any artist.",
+    answers: ["Beyoncé","Georg Solti","Quincy Jones","Kendrick Lamar","Alison Krauss","Stevie Wonder","John Williams","Vladimir Horowitz","Chick Corea","Aretha Franklin"]
+  },
+  {
+    id: 56, difficulty: "easy", ranked: false, icon: "🐘", topic: "general",
+    title: "Largest land animals",
+    prompt: "Name the top 10 largest land animals on Earth by weight.",
+    fact: "The African elephant is the largest land animal alive today — males can weigh over 6,000 kg.",
+    answers: ["African Elephant","White Rhinoceros","Hippopotamus","Giraffe","American Bison","Polar Bear","Gorilla","Moose","Saltwater Crocodile","Walrus"]
+  },
+  {
+    id: 57, difficulty: "medium", ranked: false, icon: "🐆", topic: "general",
+    title: "Fastest land animals",
+    prompt: "Name the top 10 fastest land animals in the world.",
+    fact: "The cheetah is the fastest land animal on Earth, capable of bursts over 100 km/h — but only for about 20-30 seconds at a time.",
+    answers: ["Cheetah","Pronghorn","Springbok","Wildebeest","Lion","Blackbuck","Thomson's Gazelle","African Wild Dog","Elk","Coyote"]
+  },
+  {
+    id: 58, difficulty: "hard", ranked: true, icon: "🧪", topic: "general",
+    title: "Most abundant elements in Earth's crust",
+    prompt: "Name the top 10 most abundant chemical elements in the Earth's crust by mass.",
+    fact: "Oxygen and silicon alone make up over 70% of the Earth's crust by mass — most of it locked up in silicate rock.",
+    answers: ["Oxygen","Silicon","Aluminum","Iron","Calcium","Sodium","Potassium","Magnesium","Titanium","Hydrogen"]
+  },
+  {
+    id: 59, difficulty: "hard", ranked: false, icon: "👑", topic: "general",
+    title: "Longest-reigning monarchs in history",
+    prompt: "Name 10 monarchs among the longest-reigning rulers in recorded history.",
+    fact: "France's Louis XIV reigned for 72 years — the longest verified reign of any major European monarch.",
+    answers: ["Louis XIV","Sobhuza II","Bhumibol Adulyadej","Elizabeth II","Johann II","Franz Joseph I","Kangxi Emperor","Queen Victoria","Hirohito","Basil II"]
+  },
+  {
+    id: 60, difficulty: "medium", ranked: true, icon: "🏰", topic: "general",
+    title: "Largest empires in history",
+    prompt: "Name the top 10 largest empires in history by land area at their peak.",
+    fact: "At its height, the British Empire covered roughly a quarter of the Earth's land surface — the largest empire ever to exist.",
+    answers: ["British Empire","Mongol Empire","Russian Empire","Qing Dynasty","Spanish Empire","French colonial empire","Abbasid Caliphate","Umayyad Caliphate","Portuguese Empire","Yuan Dynasty"]
+  },
+  {
+    id: 61, difficulty: "medium", ranked: false, icon: "💹", topic: "general",
+    title: "Most valuable companies in the world",
+    prompt: "Name the top 10 most valuable publicly traded companies in the world by market capitalization.",
+    fact: "This list shuffles constantly — it's presented here as a snapshot from mid-2026, and tech companies have dominated the top spots for most of the last decade.",
+    answers: ["Nvidia","Apple","Microsoft","Alphabet","Amazon","Broadcom","Meta","Taiwan Semiconductor Manufacturing","Saudi Aramco","Berkshire Hathaway"]
+  },
+  {
+    id: 62, difficulty: "easy", ranked: true, icon: "🎮", topic: "general",
+    title: "Best-selling video games of all time",
+    prompt: "Name the top 10 best-selling video games of all time.",
+    fact: "Minecraft has sold well over 300 million copies — more than any other video game in history.",
+    answers: ["Minecraft","Grand Theft Auto V","Tetris","Wii Sports","PUBG: Battlegrounds","Mario Kart 8 Deluxe","Super Mario Bros.","Red Dead Redemption 2","Pokémon Red and Blue","Call of Duty: Modern Warfare 3"]
+  },
+  {
+    id: 63, difficulty: "easy", ranked: true, icon: "🍟", topic: "general",
+    title: "Fast food chains with the most locations",
+    prompt: "Name the top 10 fast food and quick-service chains with the most locations worldwide.",
+    fact: "Mixue Ice Cream & Tea, a Chinese chain, quietly overtook McDonald's to become the world's largest fast-food chain by number of locations.",
+    answers: ["Mixue Ice Cream & Tea","McDonald's","Starbucks","Subway","KFC","Domino's","Pizza Hut","Dunkin'","Burger King","Baskin-Robbins"]
+  },
+  {
+    id: 64, difficulty: "medium", ranked: true, icon: "🏗️", topic: "general",
+    title: "Tallest buildings in the world",
+    prompt: "Name the top 10 tallest buildings in the world.",
+    fact: "The Burj Khalifa in Dubai has held the title of world's tallest building since 2010, standing at 828 meters.",
+    answers: ["Burj Khalifa","Merdeka 118","Shanghai Tower","Abraj Al-Bait Clock Tower","Ping An Finance Center","Lotte World Tower","One World Trade Center","Guangzhou CTF Finance Centre","Tianjin CTF Finance Centre","CITIC Tower"]
+  },
+  {
+    id: 65, difficulty: "medium", ranked: true, icon: "🎾", topic: "general",
+    title: "Most men's Grand Slam singles titles",
+    prompt: "Name the top 10 men's tennis players with the most Grand Slam singles titles.",
+    fact: "Novak Djokovic holds the men's all-time record with 24 Grand Slam singles titles (as of early 2026).",
+    answers: ["Novak Djokovic","Rafael Nadal","Roger Federer","Pete Sampras","Roy Emerson","Björn Borg","Rod Laver","Bill Tilden","Andre Agassi","Jimmy Connors"]
+  },
+  {
+    id: 66, difficulty: "easy", ranked: true, icon: "🌐", topic: "general",
+    title: "Most visited websites in the world",
+    prompt: "Name the top 10 most visited websites in the world.",
+    fact: "Google.com receives tens of billions of visits a month — more than any other website on Earth. (2026 traffic data)",
+    answers: ["Google","YouTube","Facebook","Instagram","ChatGPT","Reddit","Wikipedia","X (Twitter)","TikTok","Amazon"]
+  },
+  {
+    id: 67, difficulty: "hard", ranked: false, icon: "💵", topic: "general",
+    title: "Most valuable currencies in the world",
+    prompt: "Name the top 10 most valuable currencies in the world by exchange rate against the US dollar.",
+    fact: "The Kuwaiti Dinar is the world's highest-valued currency, worth over $3 USD — a reflection of Kuwait's oil wealth and small population, not general economic dominance. (2026 figures)",
+    answers: ["Kuwaiti Dinar","Bahraini Dinar","Omani Rial","Jordanian Dinar","British Pound","Gibraltar Pound","Cayman Islands Dollar","Swiss Franc","Euro","US Dollar"]
+  },
+  {
+    id: 68, difficulty: "medium", ranked: false, icon: "🏀", topic: "general",
+    title: "Most NBA championships by team",
+    prompt: "Name the top 10 NBA franchises with the most championships.",
+    fact: "The Boston Celtics and Los Angeles Lakers have combined to win over a third of all NBA championships ever awarded.",
+    answers: ["Boston Celtics","Los Angeles Lakers","Golden State Warriors","Chicago Bulls","San Antonio Spurs","Detroit Pistons","Miami Heat","Philadelphia 76ers","Houston Rockets","New York Knicks"]
+  },
+  {
+    id: 69, difficulty: "medium", ranked: false, icon: "🐍", topic: "general",
+    title: "Most venomous animals in the world",
+    prompt: "Name 10 animals commonly considered among the most venomous in the world.",
+    fact: "The box jellyfish is widely considered the most venomous animal on Earth — its sting can be fatal within minutes.",
+    answers: ["Box Jellyfish","Inland Taipan","Black Mamba","Cone Snail","Poison Dart Frog","Deathstalker Scorpion","Pufferfish","Brazilian Wandering Spider","King Cobra","Stonefish"]
+  },
+  {
+    id: 70, difficulty: "easy", ranked: true, icon: "🐋", topic: "general",
+    title: "Largest sea creatures",
+    prompt: "Name the top 10 largest sea creatures in the world.",
+    fact: "The blue whale is the largest animal ever known to have existed — bigger than any dinosaur.",
+    answers: ["Blue Whale","Fin Whale","Sperm Whale","Whale Shark","Right Whale","Humpback Whale","Bowhead Whale","Basking Shark","Colossal Squid","Giant Squid"]
+  },
+
+  /* ---- Continent Specials ---- */
+  {
+    id: 71, difficulty: "medium", ranked: true, icon: "🌍", continent: "Africa",
+    title: "Largest countries in Africa",
+    prompt: "Name the top 10 largest countries in Africa by land area.",
+    fact: "Algeria is Africa's largest country by area — and the 10th largest in the world.",
+    answers: ["Algeria","Democratic Republic of the Congo","Sudan","Libya","Chad","Niger","Angola","Mali","South Africa","Ethiopia"]
+  },
+  {
+    id: 72, difficulty: "medium", ranked: false, icon: "🌍", continent: "Africa",
+    title: "Most populous countries in Africa",
+    prompt: "Name the top 10 most populous countries in Africa.",
+    fact: "Nigeria is Africa's most populous country by a wide margin, and is projected to become one of the world's most populous countries this century.",
+    answers: ["Nigeria","Ethiopia","Egypt","Democratic Republic of the Congo","Tanzania","South Africa","Kenya","Uganda","Algeria","Sudan"]
+  },
+  {
+    id: 73, difficulty: "medium", ranked: true, icon: "🌏", continent: "Asia",
+    title: "Largest countries in Asia",
+    prompt: "Name the top 10 largest countries in Asia by land area.",
+    fact: "Russia is counted as Asia's largest country by land area — the vast majority of its territory (Siberia) lies in Asia, even though most Russians live in the European part.",
+    answers: ["Russia","China","India","Kazakhstan","Saudi Arabia","Indonesia","Iran","Mongolia","Pakistan","Turkey"]
+  },
+  {
+    id: 74, difficulty: "medium", ranked: true, icon: "🌏", continent: "Asia",
+    title: "Most populous countries in Asia",
+    prompt: "Name the top 10 most populous countries in Asia.",
+    fact: "China and India together account for well over a third of the entire world's population.",
+    answers: ["China","India","Indonesia","Pakistan","Bangladesh","Japan","Philippines","Vietnam","Iran","Turkey"]
+  },
+  {
+    id: 75, difficulty: "medium", ranked: true, icon: "🌍", continent: "Europe",
+    title: "Largest countries in Europe",
+    prompt: "Name the top 10 largest countries in Europe by land area.",
+    fact: "Russia is conventionally counted as Europe's largest country by total area, even though its population center and most of its landmass sit in Asia.",
+    answers: ["Russia","Ukraine","France","Spain","Sweden","Germany","Finland","Norway","Poland","Italy"]
+  },
+  {
+    id: 76, difficulty: "medium", ranked: true, icon: "🌍", continent: "Europe",
+    title: "Most populous countries in Europe",
+    prompt: "Name the top 10 most populous countries in Europe.",
+    fact: "Russia and Germany are Europe's two most populous countries, followed closely by the UK, France, and Italy.",
+    answers: ["Russia","Germany","United Kingdom","France","Italy","Spain","Ukraine","Poland","Romania","Netherlands"]
+  },
+  {
+    id: 77, difficulty: "medium", ranked: true, icon: "🌎", continent: "North America",
+    title: "Largest countries in North America",
+    prompt: "Name the top 10 largest countries in North America by land area.",
+    fact: "Canada is the largest country in North America — and the second-largest country in the world after Russia.",
+    answers: ["Canada","United States","Mexico","Nicaragua","Honduras","Cuba","Guatemala","Panama","Costa Rica","Dominican Republic"]
+  },
+  {
+    id: 78, difficulty: "medium", ranked: false, icon: "🌎", continent: "North America",
+    title: "Most populous countries in North America",
+    prompt: "Name the top 10 most populous countries in North America.",
+    fact: "The United States is home to more people than the rest of North America's countries combined.",
+    answers: ["United States","Mexico","Canada","Guatemala","Haiti","Cuba","Dominican Republic","Honduras","Nicaragua","El Salvador"]
+  },
+  {
+    id: 79, difficulty: "medium", ranked: true, icon: "🌎", continent: "South America",
+    title: "Largest countries in South America",
+    prompt: "Name the top 10 largest countries in South America by land area (out of the continent's 12 countries).",
+    fact: "Brazil alone covers nearly half of South America's total land area.",
+    answers: ["Brazil","Argentina","Peru","Colombia","Bolivia","Venezuela","Chile","Paraguay","Ecuador","Guyana"]
+  },
+  {
+    id: 80, difficulty: "medium", ranked: false, icon: "🌎", continent: "South America",
+    title: "Most populous countries in South America",
+    prompt: "Name the top 10 most populous countries in South America (out of the continent's 12 countries).",
+    fact: "Brazil is home to over half of South America's entire population.",
+    answers: ["Brazil","Colombia","Argentina","Peru","Venezuela","Chile","Ecuador","Bolivia","Paraguay","Uruguay"]
+  },
+  {
+    id: 81, difficulty: "medium", ranked: false, icon: "🌏", continent: "Oceania",
+    title: "Largest countries in Oceania",
+    prompt: "Name 10 of Oceania's sovereign countries, ranked by land area.",
+    fact: "Australia is by far Oceania's largest country — technically it's classified as both a country and a continent.",
+    answers: ["Australia","Papua New Guinea","New Zealand","Solomon Islands","Fiji","Vanuatu","Kiribati","Samoa","Tonga","Micronesia"]
+  },
+  {
+    id: 82, difficulty: "medium", ranked: false, icon: "🌏", continent: "Oceania",
+    title: "Most populous countries in Oceania",
+    prompt: "Name 10 of Oceania's sovereign countries, ranked by population.",
+    fact: "Papua New Guinea has the second-largest population in Oceania after Australia, despite being one of the most linguistically diverse places on Earth.",
+    answers: ["Australia","Papua New Guinea","New Zealand","Fiji","Solomon Islands","Vanuatu","Samoa","Kiribati","Micronesia","Tonga"]
+  }
+];
+
+/* Master pool for typeahead suggestions — every world country plus every
+   non-country feature (rivers, mountains, deserts, lakes, islands) used
+   anywhere in the question bank. Shown identically regardless of which
+   round is active, so suggestions never hint at what's correct. */
+const SUGGESTION_POOL = Array.from(new Set([
+  "Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda","Argentina","Armenia","Australia","Austria",
+  "Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan","Bolivia",
+  "Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso","Burundi","Cabo Verde","Cambodia",
+  "Cameroon","Canada","Central African Republic","Chad","Chile","China","Colombia","Comoros","Costa Rica","Croatia",
+  "Cuba","Cyprus","Czech Republic","Democratic Republic of the Congo","Denmark","Djibouti","Dominica","Dominican Republic",
+  "Ecuador","Egypt","El Salvador","Equatorial Guinea","Eritrea","Estonia","Eswatini","Ethiopia","Fiji","Finland","France",
+  "Gabon","Gambia","Georgia","Germany","Ghana","Greece","Grenada","Guatemala","Guinea","Guinea-Bissau","Guyana","Haiti",
+  "Honduras","Hungary","Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy","Ivory Coast","Jamaica",
+  "Japan","Jordan","Kazakhstan","Kenya","Kiribati","Kosovo","Kuwait","Kyrgyzstan","Laos","Latvia","Lebanon","Lesotho",
+  "Liberia","Libya","Liechtenstein","Lithuania","Luxembourg","Madagascar","Malawi","Malaysia","Maldives","Mali","Malta",
+  "Marshall Islands","Mauritania","Mauritius","Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro","Morocco",
+  "Mozambique","Myanmar","Namibia","Nauru","Nepal","Netherlands","New Zealand","Nicaragua","Niger","Nigeria","North Korea",
+  "North Macedonia","Norway","Oman","Pakistan","Palau","Palestine","Panama","Papua New Guinea","Paraguay","Peru",
+  "Philippines","Poland","Portugal","Qatar","Republic of the Congo","Romania","Russia","Rwanda","Saint Kitts and Nevis",
+  "Saint Lucia","Saint Vincent and the Grenadines","Samoa","San Marino","São Tomé and Príncipe","Saudi Arabia","Senegal",
+  "Serbia","Seychelles","Sierra Leone","Singapore","Slovakia","Slovenia","Solomon Islands","Somalia","South Africa",
+  "South Korea","South Sudan","Spain","Sri Lanka","Sudan","Suriname","Sweden","Switzerland","Syria","Taiwan","Tajikistan",
+  "Tanzania","Thailand","Timor-Leste","Togo","Tonga","Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Tuvalu",
+  "Uganda","Ukraine","United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan","Vanuatu",
+  "Vatican City","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe",
+  ...QUESTIONS.flatMap(q => q.answers)
+])).sort();
+
+/* Aliases for lenient answer-matching. Key = canonical answer text. */
+const ALIASES = {
+  "united states": ["usa","us","united states of america","america"],
+  "united kingdom": ["uk","britain","great britain"],
+  "united arab emirates": ["uae"],
+  "democratic republic of the congo": ["drc","dr congo","congo kinshasa","congo-kinshasa","democratic republic of congo"],
+  "republic of the congo": ["congo","congo brazzaville","congo-brazzaville"],
+  "russia": ["russian federation"],
+  "south korea": ["korea","republic of korea"],
+  "vatican city": ["vatican","holy see"],
+  "saint kitts and nevis": ["st kitts and nevis","st. kitts and nevis","skn"],
+  "são tomé and príncipe": ["sao tome and principe","sao tome"],
+  "central african republic": ["car"],
+  "papua new guinea": ["png"],
+  "mount everest": ["everest"],
+  "kangchenjunga": ["kanchenjunga"],
+  "nile": ["nile river"],
+  "amazon": ["amazon river"],
+  "yangtze": ["yangtze river"],
+  "mississippi-missouri": ["mississippi","missouri","mississippi river"],
+  "yenisei": ["yenisei river"],
+  "yellow river": ["huang he","huang he river"],
+  "ob-irtysh": ["ob irtysh","ob river","irtysh"],
+  "río de la plata-paraná": ["rio de la plata parana","parana","parana river","rio de la plata"],
+  "congo": ["congo river"],
+  "amur": ["amur river"],
+  "sahara desert": ["sahara"],
+  "arabian desert": ["arabian"],
+  "gobi desert": ["gobi"],
+  "kalahari desert": ["kalahari"],
+  "patagonian desert": ["patagonian","patagonia"],
+  "great victoria desert": ["great victoria"],
+  "syrian desert": ["syrian"],
+  "great basin desert": ["great basin"],
+  "antarctic desert": ["antarctica"],
+  "arctic desert": ["arctic"],
+  "caspian sea": ["caspian"],
+  "lake baikal": ["baikal"],
+  "lake superior": ["superior"],
+  "lake victoria": ["victoria (lake)"],
+  "lake huron": ["huron"],
+  "lake michigan": ["michigan (lake)"],
+  "lake tanganyika": ["tanganyika"],
+  "lake malawi": ["malawi (lake)","lake nyasa"],
+  "great bear lake": ["bear lake"],
+  "great slave lake": ["slave lake"],
+  "bonneville salt flats": ["bonneville"],
+  "rann of kutch": ["kutch","rann of kachchh"],
+  "dasht-e kavir": ["kavir desert","great salt desert","dasht e kavir"],
+  "salar de uyuni": ["uyuni"],
+  "salar de coipasa": ["coipasa"],
+  "etosha pan": ["etosha"],
+  "makgadikgadi pan": ["makgadikgadi"],
+  "chott el djerid": ["chott el jerid","djerid"],
+  "lake eyre": ["eyre"],
+  "great dividing range": ["dividing range"],
+  "trans-antarctic mountains": ["transantarctic mountains","trans antarctic mountains"],
+  "ural mountains": ["urals"],
+  "zagros mountains": ["zagros"],
+  "rocky mountains": ["rockies"],
+  "himalayas": ["himalaya"],
+  "ganges-brahmaputra": ["ganges","brahmaputra","ganges brahmaputra"],
+  "mississippi": ["mississippi river"],
+  "lena": ["lena river"],
+  "paraná": ["parana","parana river"],
+  "mekong": ["mekong river"],
+  "orinoco": ["orinoco river"],
+  "o'higgins-san martín": ["ohiggins san martin","o higgins san martin","san martin","lago san martin","lago ohiggins"],
+  "issyk-kul": ["issyk kul","ysyk kul"],
+  "lake matano": ["matano"],
+  "lake toba": ["toba"],
+  "hartsfield-jackson atlanta": ["atlanta","atlanta airport","hartsfield jackson","atl"],
+  "dubai international": ["dubai","dxb"],
+  "tokyo haneda": ["haneda","hnd"],
+  "dallas/fort worth": ["dallas fort worth","dfw","dallas"],
+  "shanghai pudong": ["pudong","pvg"],
+  "chicago o'hare": ["ohare","o hare","chicago","ord"],
+  "london heathrow": ["heathrow","lhr"],
+  "istanbul airport": ["istanbul","ist"],
+  "guangzhou baiyun": ["baiyun","guangzhou","can"],
+  "denver international": ["denver","den"],
+  "soviet union": ["ussr","cccp"],
+  "great britain": ["team gb","britain","united kingdom","uk"],
+  "avengers: endgame": ["avengers endgame","endgame"],
+  "avatar: the way of water": ["avatar the way of water","way of water"],
+  "star wars: the force awakens": ["star wars the force awakens","the force awakens","force awakens"],
+  "avengers: infinity war": ["avengers infinity war","infinity war"],
+  "spider-man: no way home": ["spiderman no way home","spider man no way home","no way home"],
+  "the beatles": ["beatles"],
+  "elvis presley": ["elvis"],
+  "michael jackson": ["mj"],
+  "thomson's gazelle": ["thomsons gazelle","thomson gazelle"],
+  "african wild dog": ["wild dog","cape hunting dog","painted dog"],
+  "sobhuza ii": ["sobhuza 2","sobhuza"],
+  "bhumibol adulyadej": ["bhumibol","rama ix","king bhumibol"],
+  "johann ii": ["johann 2","johann ii of liechtenstein"],
+  "franz joseph i": ["franz joseph","franz josef"],
+  "kangxi emperor": ["kangxi"],
+  "queen victoria": ["victoria"],
+  "basil ii": ["basil 2","basil the bulgar slayer"],
+  "qing dynasty": ["qing"],
+  "french colonial empire": ["france colonial empire","french empire"],
+  "abbasid caliphate": ["abbasid"],
+  "umayyad caliphate": ["umayyad"],
+  "yuan dynasty": ["yuan"],
+  "taiwan semiconductor manufacturing": ["tsmc","taiwan semiconductor"],
+  "berkshire hathaway": ["berkshire"],
+  "alphabet": ["google"],
+  "pubg: battlegrounds": ["pubg","pubg battlegrounds"],
+  "mario kart 8 deluxe": ["mario kart 8","mario kart"],
+  "super mario bros.": ["super mario bros","super mario"],
+  "red dead redemption 2": ["rdr2","red dead redemption2"],
+  "pokémon red and blue": ["pokemon red and blue","pokemon red","pokemon blue"],
+  "call of duty: modern warfare 3": ["call of duty modern warfare 3","cod mw3","modern warfare 3"],
+  "mixue ice cream & tea": ["mixue","mixue ice cream and tea"],
+  "dunkin'": ["dunkin","dunkin donuts"],
+  "merdeka 118": ["merdeka"],
+  "abraj al-bait clock tower": ["abraj al bait","mecca royal clock tower","makkah clock tower"],
+  "ping an finance center": ["ping an"],
+  "lotte world tower": ["lotte tower"],
+  "one world trade center": ["one world trade","freedom tower","1 world trade center"],
+  "guangzhou ctf finance centre": ["guangzhou ctf","guangzhou ctf finance center"],
+  "tianjin ctf finance centre": ["tianjin ctf","tianjin ctf finance center"],
+  "citic tower": ["china zun","citic"],
+  "novak djokovic": ["djokovic"],
+  "rafael nadal": ["nadal"],
+  "roger federer": ["federer"],
+  "pete sampras": ["sampras"],
+  "roy emerson": ["emerson"],
+  "björn borg": ["bjorn borg","borg"],
+  "rod laver": ["laver"],
+  "bill tilden": ["tilden"],
+  "andre agassi": ["agassi"],
+  "jimmy connors": ["connors"],
+  "chatgpt": ["chat gpt","openai"],
+  "x (twitter)": ["twitter","x"],
+  "kuwaiti dinar": ["kwd"],
+  "bahraini dinar": ["bhd"],
+  "omani rial": ["omr"],
+  "jordanian dinar": ["jod"],
+  "british pound": ["gbp","pound sterling","sterling","pound"],
+  "gibraltar pound": ["gip"],
+  "cayman islands dollar": ["kyd","cayman dollar"],
+  "swiss franc": ["chf"],
+  "us dollar": ["usd","dollar","american dollar"],
+  "golden state warriors": ["warriors","gsw"],
+  "san antonio spurs": ["spurs"],
+  "detroit pistons": ["pistons"],
+  "miami heat": ["heat"],
+  "philadelphia 76ers": ["76ers","sixers"],
+  "houston rockets": ["rockets"],
+  "new york knicks": ["knicks"],
+  "chicago bulls": ["bulls"],
+  "los angeles lakers": ["lakers","la lakers"],
+  "boston celtics": ["celtics"],
+  "box jellyfish": ["jellyfish"],
+  "inland taipan": ["taipan"],
+  "black mamba": ["mamba"],
+  "cone snail": ["cone shell"],
+  "poison dart frog": ["dart frog","poison arrow frog"],
+  "deathstalker scorpion": ["deathstalker"],
+  "pufferfish": ["puffer fish","fugu"],
+  "brazilian wandering spider": ["wandering spider","banana spider"],
+  "stonefish": ["stone fish"],
+  "right whale": ["north atlantic right whale"],
+  "humpback whale": ["humpback"],
+  "bowhead whale": ["bowhead"]
+};
+
+/* =========================================================
+   SOUND EFFECTS (synthesized, no audio files needed)
+   ========================================================= */
+const AudioFX = (function(){
+  let ctx = null;
+  let muted = localStorage.getItem("top10geo_muted") === "1";
+  function getCtx(){
+    if(!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if(ctx.state === "suspended") ctx.resume();
+    return ctx;
+  }
+  function tone(freq, duration, type, gain, delay){
+    if(muted) return;
+    try{
+      const c = getCtx();
+      const osc = c.createOscillator();
+      const g = c.createGain();
+      osc.type = type || "sine";
+      osc.frequency.value = freq;
+      osc.connect(g); g.connect(c.destination);
+      const t0 = c.currentTime + (delay || 0);
+      g.gain.setValueAtTime(gain || 0.15, t0);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+      osc.start(t0);
+      osc.stop(t0 + duration + 0.03);
+    }catch(e){ /* audio not available — fail silently */ }
+  }
+  return {
+    correct(){ tone(880,0.12,"sine",0.18,0); tone(1318.5,0.16,"sine",0.14,0.08); },
+    wrong(){ tone(180,0.28,"sawtooth",0.14,0); },
+    click(){ tone(500,0.05,"square",0.06,0); },
+    win(){ [523.25,659.25,783.99,1046.5].forEach((f,i)=>tone(f,0.18,"sine",0.16,i*0.09)); },
+    lose(){ tone(220,0.3,"sawtooth",0.12,0); tone(170,0.35,"sawtooth",0.12,0.15); },
+    hint(){ tone(660,0.1,"triangle",0.12,0); },
+    toggleMute(){
+      muted = !muted;
+      localStorage.setItem("top10geo_muted", muted ? "1" : "0");
+      return muted;
+    },
+    isMuted(){ return muted; }
+  };
+})();
+function toggleMute(){
+  const nowMuted = AudioFX.toggleMute();
+  renderMuteBtn();
+  if(!nowMuted) AudioFX.click();
+}
+function renderMuteBtn(){
+  const btn = document.getElementById("muteBtn");
+  if(btn) btn.textContent = AudioFX.isMuted() ? "🔇" : "🔊";
+}
+
+/* =========================================================
+   STATE
+   ========================================================= */
+const STORAGE_KEY = "top10geo_state_v1";
+const FREE_DAILY_PRACTICE_LIMIT = 3;   // non-daily rounds free players get per day
+const PREMIUM_SCORE_MULTIPLIER = 1.25;  // real, functional premium perk
+const STREAK_MILESTONES = { 3: 15, 7: 40, 14: 80, 30: 200, 50: 400, 100: 1000 };
+const LEVEL_TITLES = ["Map Rookie","Trail Finder","Globetrotter","Explorer","Navigator","Cartographer","Geo Master","World Sage","Atlas Legend","Globe Grandmaster"];
+function defaultState(){
+  return {
+    score: 0,
+    streak: 0,
+    bestStreak: 0,
+    premium: false,
+    trialActive: false,
+    trialUsed: false,
+    trialEndsAt: null,
+    lifetime: false,
+    dailyDate: null,
+    dailyQuestionId: null,
+    dailyCompleted: false,
+    playedIds: [],
+    practiceDate: null,
+    practiceCount: 0,
+    lastSeenLevel: 1,
+    shieldDate: null,
+    history: [],
+    duelRecord: { p1Wins: 0, p2Wins: 0, ties: 0 },
+    seenBadges: []
+  };
+}
+const CONTINENTS = ["Africa","Asia","Europe","North America","South America","Oceania"];
+function getCompletedQuestionIds(){
+  const set = new Set();
+  state.history.forEach(h => { if(h.completedAll) set.add(h.questionId); });
+  return set;
+}
+function getEarnedBadges(){
+  const completed = getCompletedQuestionIds();
+  const badges = [];
+  CONTINENTS.forEach(c=>{
+    const ids = QUESTIONS.filter(q=>q.continent===c).map(q=>q.id);
+    if(ids.length && ids.every(id=>completed.has(id))){
+      badges.push({ id: "continent-"+c, icon: "🌍", label: c+" Master" });
+    }
+  });
+  if(CONTINENTS.every(c => badges.some(b=>b.id==="continent-"+c))){
+    badges.push({ id: "world-tour", icon: "🌐", label: "Full World Tour" });
+  }
+  const gkIds = QUESTIONS.filter(q=>(q.topic||"geography")==="general").map(q=>q.id);
+  if(gkIds.length && gkIds.every(id=>completed.has(id))){
+    badges.push({ id: "gk-guru", icon: "🎉", label: "General Knowledge Guru" });
+  }
+  const expertIds = QUESTIONS.filter(q=>q.difficulty==="expert").map(q=>q.id);
+  if(expertIds.length && expertIds.every(id=>completed.has(id))){
+    badges.push({ id: "expert-master", icon: "🟣", label: "Expert Tier Master" });
+  }
+  return badges;
+}
+function getAllBadgeDefs(){
+  const defs = CONTINENTS.map(c => ({ id: "continent-"+c, icon: "🌍", label: c+" Master" }));
+  defs.push({ id: "world-tour", icon: "🌐", label: "Full World Tour" });
+  defs.push({ id: "gk-guru", icon: "🎉", label: "General Knowledge Guru" });
+  defs.push({ id: "expert-master", icon: "🟣", label: "Expert Tier Master" });
+  return defs;
+}
+function getLevelInfo(score){
+  const level = Math.floor(Math.sqrt(Math.max(0,score) / 40)) + 1;
+  const title = LEVEL_TITLES[Math.min(level - 1, LEVEL_TITLES.length - 1)];
+  const currentFloor = Math.pow(level - 1, 2) * 40;
+  const nextFloor = Math.pow(level, 2) * 40;
+  const progress = nextFloor > currentFloor ? (score - currentFloor) / (nextFloor - currentFloor) : 1;
+  return { level, title, currentFloor, nextFloor, progress: Math.max(0, Math.min(1, progress)) };
+}
+function practiceBonusForLevel(level){
+  return Math.min(5, Math.floor((level - 1) / 2)); // +1 every 2 levels, capped at +5
+}
+function nextPracticeBonusLevel(level){
+  const currentBonus = practiceBonusForLevel(level);
+  if(currentBonus >= 5) return null; // maxed out
+  for(let l = level + 1; l <= 11; l++){
+    if(practiceBonusForLevel(l) > currentBonus) return l;
+  }
+  return null;
+}
+function addScore(basePoints){
+  const amount = Math.round(basePoints * (state.premium ? PREMIUM_SCORE_MULTIPLIER : 1));
+  state.score += amount;
+  checkLevelUp();
+  return amount;
+}
+function checkLevelUp(){
+  const info = getLevelInfo(state.score);
+  if(info.level > state.lastSeenLevel){
+    const prevBonus = practiceBonusForLevel(state.lastSeenLevel);
+    const newBonus = practiceBonusForLevel(info.level);
+    state.lastSeenLevel = info.level;
+    const unlockMsg = newBonus > prevBonus ? ` +${newBonus} daily practice rounds unlocked!` : "";
+    showToast(`🎉 Level up! You're now Lv.${info.level} — ${info.title}.${unlockMsg}`);
+    AudioFX.win();
+  }
+}
+function streakShieldAvailable(){
+  return state.premium && state.shieldDate !== todayStr();
+}
+function checkTrialExpiry(){
+  if(state.trialActive && state.trialEndsAt && Date.now() > state.trialEndsAt){
+    state.trialActive = false;
+    state.premium = false;
+    saveState();
+    showToast("⏰ Your free trial has ended");
+  }
+}
+let state = loadState();
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return defaultState();
+    return Object.assign(defaultState(), JSON.parse(raw));
+  }catch(e){ return defaultState(); }
+}
+function saveState(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  renderPills();
+}
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();
+}
+function dayOfYear(){
+  const d = new Date();
+  const start = new Date(d.getFullYear(),0,0);
+  const diff = d - start;
+  return Math.floor(diff / 86400000);
+}
+function getDailyQuestion(){
+  const idx = dayOfYear() % QUESTIONS.length;
+  return QUESTIONS[idx];
+}
+function ensurePracticeDay(){
+  if(state.practiceDate !== todayStr()){
+    state.practiceDate = todayStr();
+    state.practiceCount = 0;
+  }
+}
+function effectivePracticeLimit(){
+  return FREE_DAILY_PRACTICE_LIMIT + practiceBonusForLevel(getLevelInfo(state.score).level);
+}
+function practiceRemaining(){
+  ensurePracticeDay();
+  return Math.max(0, effectivePracticeLimit() - state.practiceCount);
+}
+
+/* =========================================================
+   BACKEND (Supabase auth + Stripe payments via /api routes)
+   Fill in supabaseUrl / supabaseAnonKey below once you've
+   deployed the webapp/ folder (see webapp/DEPLOY.md). Until
+   then backendEnabled stays false and the whole game runs
+   exactly like the original local-only prototype — nothing
+   here changes offline play.
+   Once configured: signed-out visitors and anyone without a
+   deployed backend still play locally and instantly. Signed-in
+   players get their score/streak/premium synced with the real
+   database, and Premium purchases go through actual Stripe
+   Checkout instead of the local "simulate" buttons.
+   ========================================================= */
+const BACKEND = {
+  supabaseUrl: "",     // e.g. "https://xxxxx.supabase.co"
+  supabaseAnonKey: ""  // Supabase project's public "anon" key (safe to expose)
+};
+const backendEnabled = !!(BACKEND.supabaseUrl && BACKEND.supabaseAnonKey);
+let sb = null;
+let authSession = null;
+if(backendEnabled && window.supabase){
+  sb = window.supabase.createClient(BACKEND.supabaseUrl, BACKEND.supabaseAnonKey);
+}
+
+async function apiFetch(path, opts){
+  opts = opts || {};
+  const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
+  if(authSession && authSession.access_token){
+    headers["Authorization"] = "Bearer " + authSession.access_token;
+  }
+  const res = await fetch(path, Object.assign({}, opts, { headers }));
+  let data = null;
+  try{ data = await res.json(); }catch(e){ /* no body */ }
+  if(!res.ok){
+    const err = new Error((data && data.error) || ("Request failed (" + res.status + ")"));
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+function applyServerProfile(p){
+  if(!p) return;
+  state.score = p.score;
+  state.streak = p.streak;
+  state.bestStreak = p.best_streak;
+  state.premium = p.premium;
+  state.trialUsed = p.trial_used;
+  state.trialActive = p.premium_source === "trial";
+  state.trialEndsAt = p.trial_ends_at ? new Date(p.trial_ends_at).getTime() : null;
+  state.lifetime = p.lifetime;
+  state.shieldDate = p.shield_date;
+  state.practiceDate = p.practice_date;
+  state.practiceCount = p.practice_count;
+  state.lastSeenLevel = p.last_seen_level;
+  saveState();
+}
+
+async function syncProfileFromServer(){
+  if(!backendEnabled || !authSession) return;
+  try{
+    const { profile } = await apiFetch("/api/me");
+    applyServerProfile(profile);
+  }catch(e){ /* deployed but unreachable, or profile still provisioning — keep local state */ }
+}
+
+async function sendMagicLink(email){
+  if(!sb || !email) return;
+  try{
+    await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
+    showToast("📬 Check " + email + " for a sign-in link");
+  }catch(e){
+    showToast("Couldn't send link: " + e.message);
+  }
+}
+async function signOut(){
+  if(!sb) return;
+  await sb.auth.signOut();
+  authSession = null;
+  showToast("Signed out");
+  renderPremium();
+}
+async function initAuth(){
+  if(!backendEnabled || !sb) return;
+  const { data } = await sb.auth.getSession();
+  authSession = data && data.session;
+  sb.auth.onAuthStateChange((_event, session) => {
+    const justSignedIn = !authSession && session;
+    authSession = session;
+    syncProfileFromServer().then(() => { if(justSignedIn) renderPremium(); });
+  });
+  if(authSession) await syncProfileFromServer();
+}
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+function normalize(s){
+  return s.toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g,"")
+    .replace(/^\s*the\s+/,"")
+    .replace(/[^a-z0-9]/g,"");
+}
+function buildAliasSet(answerName){
+  const set = new Set();
+  set.add(normalize(answerName));
+  const key = answerName.toLowerCase();
+  if(ALIASES[key]){
+    ALIASES[key].forEach(a => set.add(normalize(a)));
+  }
+  return set;
+}
+function showToast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=>t.classList.remove("show"), 1800);
+}
+function renderPills(){
+  document.getElementById("pillStreak").textContent = state.streak;
+  const info = getLevelInfo(state.score);
+  document.getElementById("pillScore").textContent = `${state.score} · Lv${info.level}`;
+  const p = document.getElementById("pillPremium");
+  p.textContent = state.premium ? "★ Premium" : "Free";
+  p.style.color = state.premium ? "#fbbf24" : "";
+}
+
+/* =========================================================
+   ROUTER / VIEWS
+   ========================================================= */
+const main = document.getElementById("main");
+function goHome(){ renderHome(); }
+
+function renderHome(){
+  checkTrialExpiry();
+  const daily = getDailyQuestion();
+  const playedToday = state.dailyDate === todayStr() && state.dailyCompleted;
+  const info = getLevelInfo(state.score);
+  const nextBonusLvl = nextPracticeBonusLevel(info.level);
+  main.innerHTML = `
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <div>🧭 <b>Lv.${info.level} — ${info.title}</b></div>
+        <div style="color:var(--text-dim);font-size:12px;">${state.score - info.currentFloor}/${info.nextFloor - info.currentFloor} XP to Lv.${info.level+1}</div>
+      </div>
+      <div class="progress-bar"><div style="width:${Math.round(info.progress*100)}%"></div></div>
+      ${!state.premium ? `<p class="sub" style="margin:8px 0 0;font-size:12px;">${nextBonusLvl ? `🔓 Next unlock: +1 daily practice round at Lv.${nextBonusLvl}` : `🔓 Max free practice bonus reached (+${practiceBonusForLevel(info.level)}/day)`}</p>` : ''}
+    </div>
+
+    <div class="card">
+      <span class="badge ${daily.difficulty}">${daily.difficulty}</span>
+      <h2 style="margin-top:8px;">${daily.icon || "🌍"} Today's Free Question</h2>
+      <p class="sub">${daily.prompt}</p>
+      ${playedToday
+        ? `<button class="btn btn-outline btn-block" disabled>Come back tomorrow ✅</button>`
+        : `<button class="btn btn-primary btn-block" onclick="startRound(${daily.id}, true)">▶ Play Today's Question</button>`
+      }
+    </div>
+
+    <div class="card">
+      <h2>🧩 Practice Mode</h2>
+      <p class="sub">${state.premium
+        ? "Browse Geography and 🎉 General Knowledge by difficulty — unlimited rounds, every level."
+        : `Browse the question bank. Free players get ${effectivePracticeLimit()} practice rounds a day on Geography Easy (level up to raise this); Premium unlocks unlimited rounds on every level, plus the 🎉 General Knowledge tier. ${practiceRemaining()} left today.`
+      }</p>
+      <button class="btn btn-outline btn-block" onclick="renderLevels()">Browse Categories</button>
+    </div>
+
+    <div class="card">
+      <h2>⚔️ Duel Mode</h2>
+      <p class="sub">${state.premium
+        ? "Pass-and-play head-to-head: same question, same device. Whoever names the most wins; speed breaks ties."
+        : "Premium exclusive. Hand the phone to a friend and see who can name more of the top 10 — same question, same device."
+      }</p>
+      <button class="btn ${state.premium ? 'btn-primary' : 'btn-outline'} btn-block" onclick="${state.premium ? 'renderDuelPicker()' : 'renderPremium()'}">${state.premium ? '⚔️ Start a Duel' : '🔒 Unlock Duel Mode'}</button>
+    </div>
+
+    <div class="card">
+      <h2>🏅 Your Top Rounds</h2>
+      <p class="sub">A local history of your own best performances on this device — not a global leaderboard (this prototype has no accounts or server to compare against other players).</p>
+      <button class="btn btn-outline btn-block" onclick="renderTopRounds()">View Personal Bests</button>
+    </div>
+
+    ${!state.premium ? `
+    <div class="card" style="border-color:#f59e0b;">
+      <span class="badge medium">Premium</span>
+      <h2 style="margin-top:8px;">✨ Go Premium</h2>
+      <p class="sub">Unlock Medium, Hard &amp; the niche 🟣 Expert tier, the whole 🎉 General Knowledge topic, Duel Mode, a daily 🛡️ Streak Shield, unlimited daily practice, and a ${Math.round((PREMIUM_SCORE_MULTIPLIER-1)*100)}% score boost on every round.${!state.trialUsed ? ' 🎁 First 7 days free.' : ''}</p>
+      <button class="btn btn-gold btn-block" style="margin-top:12px;" onclick="renderPremium()">${!state.trialUsed ? '🎁 Try Free for 7 Days' : 'See Plans'}</button>
+    </div>` : `
+    <div class="card" style="border-color:#fbbf24;">
+      <h2>★ You're Premium</h2>
+      <p class="sub">All levels unlocked (including 🟣 Expert &amp; 🎉 General Knowledge), Duel Mode, a daily 🛡️ Streak Shield, unlimited rounds, and a ${Math.round((PREMIUM_SCORE_MULTIPLIER-1)*100)}% score boost. Thanks for supporting Top 10 Geo!</p>
+    </div>`}
+
+    <div class="streak-line">🔥 Current streak: <b style="color:#e2e8f0">${state.streak}</b> &nbsp;·&nbsp; 🏆 Best: ${state.bestStreak}${state.premium ? ` &nbsp;·&nbsp; 🛡️ Shield ${streakShieldAvailable() ? 'ready' : 'used today'}` : ''}</div>
+    <div class="ad-free-badge">🚫📺 Top 10 Geo is ad-free for everyone, free or Premium</div>
+  `;
+}
+
+const LEVEL_ICON = { easy: "🟢", medium: "🟡", hard: "🔴", expert: "🟣" };
+function renderLevels(topic){
+  topic = topic || "geography";
+  const levels = ["easy","medium","hard","expert"];
+  const remaining = practiceRemaining();
+  const outOfPractice = !state.premium && remaining <= 0;
+  const isGeneral = topic === "general";
+  let html = `<div class="card">
+    <h2>🧭 Categories</h2>
+    <p class="sub">Pick a round to practice. Order within a round doesn't matter — just name 10 correct answers before you run out of lives.</p>
+    <div class="nav-tabs">
+      <button class="${!isGeneral?'active':''}" onclick="renderLevels('geography')">🌍 Geography</button>
+      <button class="${isGeneral?'active':''}" onclick="renderLevels('general')">🎉 General Knowledge</button>
+    </div>
+    ${!state.premium && !isGeneral ? `<p class="sub" style="margin-top:-8px;">🎟️ ${remaining} of ${effectivePracticeLimit()} free practice rounds left today</p>` : ''}
+    ${isGeneral && !state.premium ? `<p class="sub" style="margin-top:-8px;">🔒 General Knowledge is Premium-exclusive, at every difficulty.</p>` : ''}
+  </div>`;
+  levels.forEach(lvl=>{
+    const qs = QUESTIONS.filter(q=>q.difficulty===lvl && (q.topic||"geography")===topic);
+    if(qs.length === 0) return;
+    const levelLocked = isGeneral ? !state.premium : (lvl !== "easy" && !state.premium);
+    const locked = levelLocked || outOfPractice;
+    const lockReason = levelLocked ? "🔒 Premium" : (outOfPractice ? "🔒 Daily limit reached" : "");
+    html += `<div class="card"><span class="badge ${lvl}">${LEVEL_ICON[lvl]} ${lvl}</span>${lockReason ? `<span class="badge locked" style="margin-left:6px;">${lockReason}</span>` : ''}<div class="cat-list" style="margin-top:12px;">`;
+    qs.forEach(q=>{
+      html += `<div class="cat-item ${locked?'locked':''}" onclick="${locked? `renderPremium()` : `startRound(${q.id}, false)`}">
+        <div class="name">${q.icon || "🌍"} ${q.title}</div>
+        <div style="color:var(--text-dim);font-size:12px;">${locked ? '🔒' : '▶'}</div>
+      </div>`;
+    });
+    html += `</div></div>`;
+  });
+  html += `<button class="btn btn-outline btn-block" onclick="goHome()">← Back home</button>`;
+  main.innerHTML = html;
+}
+
+function renderPremium(){
+  checkTrialExpiry();
+  const boost = Math.round((PREMIUM_SCORE_MULTIPLIER-1)*100);
+  const canTrial = !state.premium && !state.trialUsed;
+  const daysLeft = state.trialActive ? Math.max(0, Math.ceil((state.trialEndsAt - Date.now()) / 86400000)) : 0;
+  const signedIn = backendEnabled && !!authSession;
+  const btnLabel = backendEnabled ? { sub: "Subscribe", lifetime: "Buy Lifetime" } : { sub: "Simulate Subscribe", lifetime: "Simulate Purchase" };
+
+  const authHtml = !backendEnabled ? "" : signedIn ? `
+    <div class="card" style="border-color:var(--accent);">
+      <p class="sub" style="margin:0;">✅ Signed in as <b>${authSession.user.email}</b> — your score, streak and Premium status sync across devices.</p>
+      <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="signOut()">Sign out</button>
+    </div>` : `
+    <div class="card" style="border-color:var(--accent);">
+      <h2>👤 Sign in to subscribe</h2>
+      <p class="sub">A real subscription needs an account so it can follow you across devices. We'll email you a one-click sign-in link — no password needed.</p>
+      <input id="authEmail" type="email" placeholder="you@example.com" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border,#334155);background:var(--bg-soft);color:inherit;margin-bottom:10px;">
+      <button class="btn btn-primary btn-block" onclick="sendMagicLink(document.getElementById('authEmail').value.trim())">Send sign-in link</button>
+    </div>`;
+
+  main.innerHTML = `
+    <div class="card">
+      <h2>✨ Upgrade to Premium</h2>
+      <p class="sub">${backendEnabled ? "Real payments via Stripe — cancel or manage anytime from the billing portal below." : "This is a local demo toggle — no payment is collected. Deploy the webapp/ backend to turn this into real Stripe billing."}</p>
+      <div class="ad-free-badge">🚫📺 Top 10 Geo is ad-free for everyone — that part's not a paywall</div>
+    </div>
+    ${authHtml}
+    ${canTrial ? `
+    <div class="card" style="border-color:var(--accent);">
+      <h2>🎁 Try Premium free for 7 days</h2>
+      <p class="sub">Full access to every level, 🎉 General Knowledge, Duel Mode, and the score boost. Cancel anytime — you won't be charged during the trial, and it's a one-time offer per player.</p>
+      <button class="btn btn-primary btn-block" onclick="activatePremium('trial')" ${backendEnabled && !signedIn ? 'disabled' : ''}>Start Free Trial</button>
+    </div>` : ''}
+    ${state.trialActive ? `
+    <div class="card" style="border-color:var(--accent);">
+      <h2>🎁 Free trial active</h2>
+      <p class="sub">${daysLeft} day${daysLeft===1?'':'s'} left. Subscribe below any time to keep Premium after your trial ends — or it'll automatically switch back to Free.</p>
+    </div>` : ''}
+    <div class="plans">
+      <div class="plan">
+        <div>🗓️ Monthly</div>
+        <div class="price">$3.99 <span>/ month</span></div>
+        <ul>
+          <li>♾️ Unlimited practice rounds (vs. ${effectivePracticeLimit()}/day on your current free tier)</li>
+          <li>🔓 Medium, Hard &amp; niche 🟣 Expert difficulty, plus 🎉 General Knowledge</li>
+          <li>⚔️ Duel Mode — pass-and-play head-to-head</li>
+          <li>🛡️ Daily Streak Shield</li>
+          <li>🔥 +${boost}% score on every correct answer &amp; round bonus</li>
+        </ul>
+        <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="activatePremium('monthly')" ${backendEnabled && !signedIn ? 'disabled' : ''}>${btnLabel.sub}</button>
+      </div>
+      <div class="plan featured">
+        <div>🏆 Annual · Best value</div>
+        <div class="price">$24.99 <span>/ year</span></div>
+        <ul>
+          <li>Everything in Monthly</li>
+          <li>💰 ~48% cheaper than paying monthly</li>
+          <li>🆕 Early access to new categories</li>
+        </ul>
+        <button class="btn btn-gold btn-block" style="margin-top:12px;" onclick="activatePremium('annual')" ${backendEnabled && !signedIn ? 'disabled' : ''}>${btnLabel.sub}</button>
+      </div>
+      <div class="plan">
+        <div>♾️ Lifetime</div>
+        <div class="price">$39.99 <span>once</span></div>
+        <ul>
+          <li>Everything above, forever</li>
+          <li>One payment, no recurring billing, nothing to cancel</li>
+          <li>For anyone who'd rather not subscribe to anything</li>
+        </ul>
+        <button class="btn btn-outline btn-block" style="margin-top:12px;" onclick="activatePremium('lifetime')" ${backendEnabled && !signedIn ? 'disabled' : ''}>${btnLabel.lifetime}</button>
+      </div>
+    </div>
+    ${state.premium && !state.lifetime ? `<button class="btn btn-outline btn-block" onclick="deactivatePremium()">${backendEnabled ? 'Manage billing / cancel' : 'Cancel ' + (state.trialActive ? 'trial' : 'demo subscription')}</button>` : ''}
+    <button class="btn btn-outline btn-block" onclick="goHome()">← Back home</button>
+  `;
+}
+async function activatePremium(mode, opts){
+  opts = opts || {};
+  mode = mode || 'monthly';
+
+  if(backendEnabled){
+    if(!authSession){ showToast("👤 Sign in first — see the box above"); renderPremium(); return; }
+    try{
+      if(mode === 'trial'){
+        const { profile } = await apiFetch("/api/start-trial", { method: "POST" });
+        applyServerProfile(profile);
+        AudioFX.win();
+        showToast("🎁 7-day free trial started!");
+        goHome();
+      } else {
+        const { url } = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify({ plan: mode }) });
+        window.location.href = url; // hand off to real Stripe Checkout
+      }
+    } catch(e){
+      showToast("⚠️ " + e.message);
+      renderPremium();
+    }
+    return;
+  }
+
+  // Local demo mode (no backend configured yet) — unchanged simulate behavior.
+  state.premium = true;
+  if(mode === 'trial'){
+    state.trialActive = true;
+    state.trialUsed = true;
+    state.trialEndsAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  } else if(mode === 'lifetime'){
+    state.lifetime = true;
+    state.trialActive = false;
+  } else {
+    state.trialActive = false;
+  }
+  saveState();
+  if(!opts.silent){
+    AudioFX.win();
+    showToast(mode === 'trial' ? "🎁 7-day free trial started!" : mode === 'lifetime' ? "♾️ Lifetime Premium activated!" : "★ Premium activated (demo)");
+    goHome();
+  }
+}
+async function deactivatePremium(){
+  if(backendEnabled){
+    if(state.lifetime){ showToast("♾️ Lifetime Premium has nothing to cancel"); return; }
+    try{
+      const { url } = await apiFetch("/api/portal", { method: "POST" });
+      window.location.href = url; // real Stripe-hosted billing portal
+    } catch(e){
+      showToast("⚠️ " + e.message);
+    }
+    return;
+  }
+  state.premium = false;
+  state.trialActive = false;
+  saveState();
+  goHome();
+}
+
+/* =========================================================
+   GAME ROUND
+   ========================================================= */
+let roundState = null;
+let duelState = null;
+function startRound(questionId, isDaily, duelCtx){
+  const q = QUESTIONS.find(x=>x.id===questionId);
+  if(!q) return;
+  if(!duelCtx && !isDaily && !state.premium){
+    if(practiceRemaining() <= 0){
+      showToast("🎟️ Out of free practice rounds for today");
+      renderPremium();
+      return;
+    }
+    state.practiceCount++;
+    saveState();
+  }
+  roundState = {
+    question: q,
+    isDaily: isDaily,
+    duel: duelCtx || null,
+    startedAt: Date.now(),
+    lives: 5,
+    found: new Array(q.answers.length).fill(null),
+    foundCount: 0,
+    wrongGuesses: new Set(),
+    over: false
+  };
+  renderRound();
+}
+
+function renderRound(){
+  const rs = roundState;
+  const q = rs.question;
+  const heartsHtml = Array.from({length:5}).map((_,i)=>
+    `<span class="life ${i < rs.lives ? '' : 'lost'}">❤️</span>`
+  ).join("");
+
+  const slotsHtml = q.answers.map((ans, i)=>{
+    const val = rs.found[i];
+    return `<div class="slot ${val ? 'filled':''}">
+      <span class="rank">${q.ranked ? (i+1) : '•'}</span>
+      <span>${val ? "✅ "+val : '?'}</span>
+    </div>`;
+  }).join("");
+
+  main.innerHTML = `
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <span class="badge ${q.difficulty}">${LEVEL_ICON[q.difficulty]||''} ${q.difficulty}</span>
+        <div class="lives">${heartsHtml}</div>
+      </div>
+      ${rs.duel ? `<div class="badge expert" style="margin-top:8px;">⚔️ Player ${rs.duel.player}'s turn</div>` : ''}
+      <h2 style="margin-top:10px;">${q.icon || "🌍"} ${q.title}</h2>
+      <p class="sub">${q.prompt}</p>
+      <div class="progress-bar"><div style="width:${(rs.foundCount/q.answers.length)*100}%"></div></div>
+      <div class="slots">${slotsHtml}</div>
+      <div class="guess-wrap">
+        <form class="guess-row" onsubmit="submitGuess(event)" autocomplete="off">
+          <input type="text" id="guessInput" placeholder="🔎 Type a country / answer…" autocomplete="off" autofocus
+            oninput="handleTypeahead(this.value)" onblur="hideSuggestionsSoon()" onfocus="handleTypeahead(this.value)">
+          <button class="btn btn-primary" type="submit">Guess</button>
+        </form>
+        <div class="suggestions hidden" id="suggestions"></div>
+      </div>
+      <div class="feedback" id="feedback"></div>
+      <div class="hint-row">
+        <button class="btn btn-outline btn-block" type="button" onclick="useHint()" ${rs.lives<=1 || rs.foundCount===q.answers.length ? 'disabled':''}>💡 Hint (−1 ❤️)</button>
+      </div>
+    </div>
+    <button class="btn btn-outline btn-block" onclick="quitRound()">🏳️ Give up &amp; reveal answers</button>
+  `;
+}
+
+function getSuggestionMatches(query){
+  const q = (query||"").trim().toLowerCase();
+  if(q.length < 1) return [];
+  return SUGGESTION_POOL.filter(name => name.toLowerCase().startsWith(q)).slice(0,6);
+}
+function handleTypeahead(value){
+  const box = document.getElementById("suggestions");
+  if(!box) return;
+  const matches = getSuggestionMatches(value);
+  if(matches.length === 0){
+    box.classList.add("hidden");
+    box.innerHTML = "";
+    return;
+  }
+  box.innerHTML = matches.map(m => `<div class="sug-item" onmousedown="selectSuggestion('${m.replace(/'/g,"\\'")}')">${m}</div>`).join("");
+  box.classList.remove("hidden");
+}
+function selectSuggestion(name){
+  const input = document.getElementById("guessInput");
+  if(!input) return;
+  input.value = name;
+  hideSuggestions();
+  submitGuess(new Event("submit"), true);
+}
+function hideSuggestions(){
+  const box = document.getElementById("suggestions");
+  if(box){ box.classList.add("hidden"); box.innerHTML = ""; }
+}
+function hideSuggestionsSoon(){
+  setTimeout(hideSuggestions, 150);
+}
+
+function useHint(){
+  const rs = roundState;
+  if(!rs || rs.over) return;
+  if(rs.lives <= 1){ showToast("Not enough lives left for a hint"); return; }
+  const remaining = rs.question.answers.map((a,i)=>({a,i})).filter(x=>!rs.found[x.i]);
+  if(remaining.length === 0) return;
+  const pick = remaining[Math.floor(Math.random()*remaining.length)];
+  rs.lives--;
+  AudioFX.hint();
+  showToast(`💡 Hint: one answer starts with "${pick.a[0].toUpperCase()}"`);
+  if(rs.lives <= 0){ finishRound(false); return; }
+  renderRound();
+}
+
+function submitGuess(e, fromSuggestion){
+  if(e && e.preventDefault) e.preventDefault();
+  const rs = roundState;
+  if(!rs || rs.over) return;
+  const input = document.getElementById("guessInput");
+  const raw = (input ? input.value : "").trim();
+  if(!raw) return;
+  const norm = normalize(raw);
+  if(input) input.value = "";
+  hideSuggestions();
+
+  const q = rs.question;
+  let matchedIndex = -1;
+  for(let i=0;i<q.answers.length;i++){
+    if(rs.found[i]) continue; // already found
+    const set = buildAliasSet(q.answers[i]);
+    if(set.has(norm)){ matchedIndex = i; break; }
+  }
+
+  const feedback = document.getElementById("feedback");
+
+  if(matchedIndex !== -1){
+    rs.found[matchedIndex] = q.answers[matchedIndex];
+    rs.foundCount++;
+    const POINTS_BY_DIFFICULTY = { easy: 7, medium: 10, hard: 15, expert: 22 };
+    addScore(POINTS_BY_DIFFICULTY[q.difficulty] || 7);
+    AudioFX.correct();
+    feedback.textContent = "✅ Correct! " + q.answers[matchedIndex] + " is on the list.";
+    feedback.className = "feedback ok";
+    saveState();
+    if(rs.foundCount === q.answers.length){
+      finishRound(true);
+      return;
+    }
+  } else {
+    if(rs.wrongGuesses.has(norm)){
+      AudioFX.click();
+      feedback.textContent = "🤔 You already tried that one.";
+      feedback.className = "feedback bad";
+    } else {
+      rs.wrongGuesses.add(norm);
+      rs.lives--;
+      AudioFX.wrong();
+      feedback.textContent = "❌ Not on the list. Life lost.";
+      feedback.className = "feedback bad";
+      if(rs.lives <= 0){
+        finishRound(false);
+        return;
+      }
+    }
+  }
+  renderRound();
+  document.getElementById("feedback").textContent = feedback.textContent;
+  document.getElementById("feedback").className = feedback.className;
+}
+
+function quitRound(){
+  finishRound(false);
+}
+
+function finishRound(completedAll){
+  const rs = roundState;
+  rs.over = true;
+  const q = rs.question;
+
+  if(rs.duel){
+    finishDuelLeg(completedAll);
+    return;
+  }
+
+  const wouldLoseStreak = !completedAll && rs.foundCount < q.answers.length && rs.lives <= 0
+    && state.streak > 0 && !state.premium;
+  if(wouldLoseStreak){
+    renderStreakSaveOffer();
+    return; // paused — resumes via saveStreakWithTrial() or declineStreakSave()
+  }
+  finalizeRound(completedAll, false);
+}
+
+function renderStreakSaveOffer(){
+  const rs = roundState;
+  const q = rs.question;
+  const canTrial = !state.trialUsed;
+  main.innerHTML = `
+    <div class="card center" style="border-color:var(--red);">
+      <h2>💔 About to lose your ${state.streak}-round streak</h2>
+      <p class="sub">You found ${rs.foundCount} of ${q.answers.length} this round — not enough to keep it going. Premium's 🛡️ Streak Shield automatically protects your streak the next time this happens.</p>
+      <button class="btn btn-gold btn-block" onclick="saveStreakWithTrial()">${canTrial ? '🎁 Start free trial & save my streak' : '🛡️ Go Premium & save my streak'}</button>
+      <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="declineStreakSave()">No thanks, reset my streak</button>
+    </div>
+  `;
+}
+async function saveStreakWithTrial(){
+  if(backendEnabled){
+    if(!authSession){
+      showToast("👤 Sign in on the Premium screen to save streaks with a free trial");
+      finalizeRound(false, false);
+      return;
+    }
+    if(state.trialUsed){
+      showToast("Already used your trial — subscribe from the Premium screen to protect future streaks");
+      finalizeRound(false, false);
+      return;
+    }
+    try{
+      const { profile } = await apiFetch("/api/start-trial", { method: "POST" });
+      applyServerProfile(profile);
+      state.shieldDate = todayStr();
+      showToast("🎁 Free trial started — streak saved!");
+    } catch(e){
+      showToast("⚠️ " + e.message);
+      finalizeRound(false, false);
+      return;
+    }
+  } else {
+    const mode = state.trialUsed ? 'monthly' : 'trial';
+    activatePremium(mode, {silent: true});
+    state.shieldDate = todayStr();
+    showToast(mode === 'trial' ? "🎁 Free trial started — streak saved!" : "★ Premium activated — streak saved!");
+  }
+  finalizeRound(false, true);
+}
+function declineStreakSave(){
+  state.streak = 0;
+  finalizeRound(false, false);
+}
+
+function finalizeRound(completedAll, shieldAlreadyUsed){
+  const rs = roundState;
+  const q = rs.question;
+  let shieldUsed = shieldAlreadyUsed;
+
+  if(completedAll){
+    state.streak += 1;
+    state.bestStreak = Math.max(state.bestStreak, state.streak);
+    addScore(25); // completion bonus
+    if(STREAK_MILESTONES[state.streak]){
+      const bonus = addScore(STREAK_MILESTONES[state.streak]);
+      showToast(`🔥 ${state.streak}-round streak! +${bonus} bonus points`);
+    }
+  } else if(!shieldUsed && rs.foundCount < q.answers.length && rs.lives <= 0){
+    if(state.streak > 0 && streakShieldAvailable()){
+      state.shieldDate = todayStr();
+      shieldUsed = true;
+      showToast("🛡️ Streak Shield protected your streak!");
+    } else {
+      state.streak = 0;
+    }
+  }
+  if(!state.playedIds.includes(q.id)) state.playedIds.push(q.id);
+
+  state.history.unshift({
+    questionId: q.id, title: q.title, icon: q.icon, difficulty: q.difficulty,
+    foundCount: rs.foundCount, total: q.answers.length, completedAll, date: todayStr()
+  });
+  if(state.history.length > 200) state.history.length = 200;
+
+  if(rs.isDaily){
+    state.dailyDate = todayStr();
+    state.dailyQuestionId = q.id;
+    state.dailyCompleted = true;
+  }
+  saveState();
+  syncRoundToServer(q, rs, completedAll, shieldUsed);
+  completedAll ? AudioFX.win() : AudioFX.lose();
+
+  const revealHtml = q.answers.map((a,i)=>{
+    const got = !!rs.found[i];
+    return `<div class="slot ${got?'filled':''}">
+      <span class="rank">${q.ranked ? (i+1) : '•'}</span><span>${got ? "✅ " : "⬜ "}${a}</span>
+    </div>`;
+  }).join("");
+
+  const newBadges = getEarnedBadges().filter(b => !(state.seenBadges||[]).includes(b.id));
+  if(newBadges.length){
+    state.seenBadges = [...(state.seenBadges||[]), ...newBadges.map(b=>b.id)];
+    saveState();
+  }
+
+  main.innerHTML = `
+    <div class="card center">
+      <h2>${completedAll ? "🎉 Nailed it!" : "😅 Round over"}</h2>
+      <p class="sub">You found ${rs.foundCount} of ${q.answers.length}${completedAll ? "" : " before running out of lives"}.${shieldUsed ? " 🛡️ Your streak was protected." : ""}</p>
+      <div class="slots" style="text-align:left;">${revealHtml}</div>
+      <div class="fact-box"><b>💡 Did you know?</b> ${q.fact}</div>
+      ${newBadges.length ? `<div class="fact-box" style="border-color:var(--gold);background:rgba(251,191,36,.08);"><b>🏅 New badge${newBadges.length>1?'s':''}!</b> ${newBadges.map(b=>b.icon+' '+b.label).join(', ')}</div>` : ''}
+      <div class="row" style="margin-top:16px;">
+        <button class="btn btn-outline btn-block" onclick="goHome()">🏠 Home</button>
+        <button class="btn btn-primary btn-block" onclick="renderLevels()">▶ Play another</button>
+      </div>
+      <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="shareResult()">📤 Share result</button>
+    </div>
+  `;
+}
+
+async function syncRoundToServer(q, rs, completedAll, shieldUsed){
+  if(!backendEnabled || !authSession) return;
+  try{
+    const { profile, milestoneBonus } = await apiFetch("/api/finish-round", {
+      method: "POST",
+      body: JSON.stringify({
+        questionId: q.id,
+        foundCount: rs.foundCount,
+        completedAll,
+        isDaily: !!rs.isDaily,
+        useShield: shieldUsed
+      })
+    });
+    applyServerProfile(profile);
+    if(milestoneBonus) showToast(`🔥 Synced — +${milestoneBonus} streak bonus points`);
+  } catch(e){
+    // Offline, backend not deployed yet, or a server-side gate (e.g. practice cap) —
+    // local score for this round already stands, so just surface real rejections.
+    if(e.status === 403) showToast("⚠️ " + e.message);
+  }
+}
+
+function shareResult(){
+  const rs = roundState;
+  if(!rs) return;
+  const q = rs.question;
+  const grid = q.answers.map((a,i)=> rs.found[i] ? "🟩" : "⬜").join("");
+  const text = `Top 10 Geo ${q.icon || "🌍"} ${q.title}\n${grid} ${rs.foundCount}/${q.answers.length}\n🔥 Streak: ${state.streak}`;
+  AudioFX.click();
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text)
+      .then(()=>showToast("📋 Result copied to clipboard!"))
+      .catch(()=>showToast("Copy failed — screenshot instead?"));
+  } else {
+    showToast("📋 " + text.replace(/\n/g," · "));
+  }
+}
+
+/* =========================================================
+   DUEL MODE (same-device pass-and-play, Premium-exclusive)
+   True cross-device multiplayer would need a backend to sync
+   two separate players in real time — out of scope for a
+   client-only prototype. This delivers the "who can name the
+   most" competitive feel without needing one, by running the
+   same round twice on one device and comparing results.
+   ========================================================= */
+function renderDuelPicker(){
+  if(!state.premium){ renderPremium(); return; }
+  const rec = state.duelRecord;
+  const levels = ["easy","medium","hard","expert"];
+  let html = `<div class="card">
+    <h2>⚔️ Duel Mode</h2>
+    <p class="sub">Pick a category. Player 1 goes first, then pass the device to Player 2 for the identical question — most correct wins, fastest time breaks ties.</p>
+    <div class="row" style="margin-top:10px;">
+      <div class="duel-card" style="flex:1;"><div style="font-size:12px;color:var(--text-dim);">Player 1 wins</div><div class="duel-score" style="font-size:20px;">${rec.p1Wins}</div></div>
+      <div class="duel-card" style="flex:1;"><div style="font-size:12px;color:var(--text-dim);">Ties</div><div class="duel-score" style="font-size:20px;">${rec.ties}</div></div>
+      <div class="duel-card" style="flex:1;"><div style="font-size:12px;color:var(--text-dim);">Player 2 wins</div><div class="duel-score" style="font-size:20px;">${rec.p2Wins}</div></div>
+    </div>
+    <p class="sub" style="margin-top:8px;font-size:11px;">🏅 Head-to-head record for this device's two seats — not tied to named accounts, since there's no login system here.</p>
+  </div>`;
+  levels.forEach(lvl=>{
+    const qs = QUESTIONS.filter(q=>q.difficulty===lvl);
+    if(qs.length === 0) return;
+    html += `<div class="card"><span class="badge ${lvl}">${LEVEL_ICON[lvl]} ${lvl}</span><div class="cat-list" style="margin-top:12px;">`;
+    qs.forEach(q=>{
+      html += `<div class="cat-item" onclick="startDuel(${q.id})">
+        <div class="name">${q.icon || "🌍"} ${q.title}${(q.topic||'geography')==='general' ? ' <span class="badge locked" style="font-size:10px;">🎉</span>' : ''}</div>
+        <div style="color:var(--text-dim);font-size:12px;">⚔️</div>
+      </div>`;
+    });
+    html += `</div></div>`;
+  });
+  html += `<button class="btn btn-outline btn-block" onclick="goHome()">← Back home</button>`;
+  main.innerHTML = html;
+}
+
+function startDuel(questionId){
+  if(!state.premium){ renderPremium(); return; }
+  duelState = { p1: null, p2: null };
+  AudioFX.click();
+  startRound(questionId, false, {player: 1});
+}
+
+function finishDuelLeg(completedAll){
+  const rs = roundState;
+  const q = rs.question;
+  const elapsed = Date.now() - rs.startedAt;
+  const result = { foundCount: rs.foundCount, lives: rs.lives, elapsed, completedAll };
+  completedAll ? AudioFX.win() : AudioFX.lose();
+
+  if(rs.duel.player === 1){
+    duelState.p1 = result;
+    main.innerHTML = `
+      <div class="card center">
+        <h2>🔄 Pass the device</h2>
+        <p class="sub">Player 1 found <b style="color:var(--text)">${result.foundCount}/${q.answers.length}</b> on <b>${q.icon || "🌍"} ${q.title}</b>. Hand the device to Player 2 for the exact same question.</p>
+        <button class="btn btn-primary btn-block" onclick="startRound(${q.id}, false, {player:2})">▶ Player 2: Start</button>
+      </div>
+    `;
+  } else {
+    duelState.p2 = result;
+    renderDuelResults(q);
+  }
+}
+
+function renderDuelResults(q){
+  const p1 = duelState.p1, p2 = duelState.p2;
+  let winner = null;
+  if(p1.foundCount !== p2.foundCount){
+    winner = p1.foundCount > p2.foundCount ? 1 : 2;
+  } else if(p1.elapsed !== p2.elapsed){
+    winner = p1.elapsed < p2.elapsed ? 1 : 2; // tiebreak: same score, faster wins
+  }
+  if(winner === 1) state.duelRecord.p1Wins++;
+  else if(winner === 2) state.duelRecord.p2Wins++;
+  else state.duelRecord.ties++;
+  saveState();
+  const fmtTime = ms => (ms/1000).toFixed(1) + "s";
+
+  main.innerHTML = `
+    <div class="card center">
+      <h2>⚔️ Duel Results</h2>
+      <p class="sub">${q.icon || "🌍"} ${q.title}</p>
+      <div class="row" style="margin:16px 0;">
+        <div class="duel-card ${winner===1?'winner':''}">
+          <div>${winner===1?'🏆 ':''}Player 1</div>
+          <div class="duel-score">${p1.foundCount}/10</div>
+          <div style="color:var(--text-dim);font-size:12px;">⏱️ ${fmtTime(p1.elapsed)} · ❤️×${p1.lives}</div>
+        </div>
+        <div class="duel-card ${winner===2?'winner':''}">
+          <div>${winner===2?'🏆 ':''}Player 2</div>
+          <div class="duel-score">${p2.foundCount}/10</div>
+          <div style="color:var(--text-dim);font-size:12px;">⏱️ ${fmtTime(p2.elapsed)} · ❤️×${p2.lives}</div>
+        </div>
+      </div>
+      ${winner ? '' : '<p class="sub">🤝 Perfect tie — even on speed!</p>'}
+      <div class="fact-box"><b>💡 Did you know?</b> ${q.fact}</div>
+      <div class="row" style="margin-top:16px;">
+        <button class="btn btn-outline btn-block" onclick="goHome()">🏠 Home</button>
+        <button class="btn btn-primary btn-block" onclick="renderDuelPicker()">⚔️ Rematch</button>
+      </div>
+    </div>
+  `;
+  duelState = null;
+}
+
+/* =========================================================
+   PERSONAL BESTS ("top players" stand-in — see README: a real
+   cross-device leaderboard needs a backend + accounts, which
+   this client-only prototype doesn't have. This is the honest
+   local equivalent: your own best rounds, on this device.)
+   ========================================================= */
+function renderTopRounds(){
+  const info = getLevelInfo(state.score);
+  const best = [...state.history]
+    .sort((a,b) => (b.foundCount - a.foundCount) || (b.total - a.total))
+    .slice(0, 10);
+  let html = `<div class="card">
+    <h2>🏅 Your Top Rounds</h2>
+    <p class="sub">Your best local results, most correct first. This is personal history stored on this device — this prototype has no accounts or server, so it can't compare you to other players. A real leaderboard would need a backend.</p>
+    <div class="row" style="justify-content:space-between;">
+      <div class="pill">★ ${state.score} total XP</div>
+      <div class="pill">🧭 Lv.${info.level} ${info.title}</div>
+      <div class="pill">🏆 Best streak ${state.bestStreak}</div>
+    </div>
+  </div>`;
+
+  const earned = getEarnedBadges().map(b=>b.id);
+  html += `<div class="card">
+    <h2>🎖️ Badges</h2>
+    <p class="sub">Earned by completing every round in a set at least once — some require Premium content to unlock.</p>
+    <div class="cat-list">
+      ${getAllBadgeDefs().map(b=>{
+        const got = earned.includes(b.id);
+        return `<div class="cat-item" style="cursor:default;${got?'':'opacity:.4;'}">
+          <div class="name">${b.icon} ${b.label}</div>
+          <div style="font-size:12px;">${got ? '✅' : '🔒'}</div>
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`;
+
+  if(best.length === 0){
+    html += `<div class="card center"><p class="sub">No rounds played yet — go play one!</p></div>`;
+  } else {
+    html += `<div class="card"><div class="cat-list">`;
+    best.forEach((r,i)=>{
+      html += `<div class="cat-item" style="cursor:default;">
+        <div class="name">#${i+1} ${r.icon||"🌍"} ${r.title} ${r.completedAll ? '🎉' : ''}</div>
+        <div style="color:var(--text-dim);font-size:12px;">${r.foundCount}/${r.total}</div>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+  html += `<button class="btn btn-outline btn-block" onclick="goHome()">← Back home</button>`;
+  main.innerHTML = html;
+}
+
+/* =========================================================
+   INIT
+   ========================================================= */
+renderPills();
+renderMuteBtn();
+renderHome();
+initAuth().then(() => {
+  const params = new URLSearchParams(window.location.search);
+  if(params.get("checkout") === "success"){
+    showToast("✅ Payment received — syncing your account...");
+    syncProfileFromServer().then(() => { if(document.getElementById("main")) renderPremium(); });
+    window.history.replaceState({}, "", window.location.pathname);
+  } else if(params.get("checkout") === "cancelled"){
+    window.history.replaceState({}, "", window.location.pathname);
+  }
+});
+</script>
+</body>
+</html>
