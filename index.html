@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Top 10 Geo — Daily Geography Trivia</title>
+<meta name="description" content="Name the top 10 in a new geography trivia round every day, free. 82 rounds spanning countries, mountains, rivers and more, plus a Premium tier with every difficulty, Duel Mode, and bonus game modes.">
+<meta property="og:title" content="Top 10 Geo — Daily Geography Trivia">
+<meta property="og:description" content="Name the top 10 in a new geography trivia round every day, free. 82 rounds spanning countries, mountains, rivers and more.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://top10geo.com">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Top 10 Geo — Daily Geography Trivia">
+<meta name="twitter:description" content="Name the top 10 in a new geography trivia round every day, free.">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root{
@@ -35,7 +43,7 @@
     min-height:100vh;
     display:flex;
     flex-direction:column;
-    padding-bottom:40px;
+    padding-bottom:84px;
   }
   header.top{
     display:flex;
@@ -138,6 +146,34 @@
     cursor:pointer;
   }
   .nav-tabs button.active{background:var(--accent);color:#04202e;border-color:var(--accent);}
+  .bottom-nav{
+    position:fixed;
+    left:0;right:0;bottom:0;
+    max-width:520px;
+    margin:0 auto;
+    display:flex;
+    background:rgba(15,23,42,0.96);
+    backdrop-filter:blur(6px);
+    border-top:1px solid var(--border);
+    z-index:40;
+  }
+  .bottom-nav button{
+    flex:1;
+    background:transparent;
+    border:none;
+    color:var(--text-dim);
+    font-size:11px;
+    font-weight:600;
+    padding:9px 4px 12px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:3px;
+    cursor:pointer;
+  }
+  .bottom-nav button .icon{font-size:19px;}
+  .bottom-nav button.active{color:var(--accent);}
+  .round-visual{display:flex;justify-content:center;margin:6px 0 2px;color:var(--accent);opacity:.85;}
   .cat-list{display:flex;flex-direction:column;gap:10px;}
   .cat-item{
     display:flex;
@@ -286,6 +322,16 @@
   .suggestions .sug-item:last-child{border-bottom:none;}
   .suggestions .sug-item:hover, .suggestions .sug-item.active{background:rgba(56,189,248,.12);}
   .hint-row{display:flex;gap:8px;margin-top:10px;}
+  .cg-dots{display:flex;gap:7px;justify-content:center;margin:14px 0;}
+  .cg-dot{width:13px;height:13px;border-radius:50%;background:var(--card-2);border:1.5px solid var(--border);}
+  .cg-dot.used{background:var(--accent);border-color:var(--accent);}
+  .cg-guess{background:var(--card-2);border:1.5px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px;}
+  .cg-guess.correct{border-color:var(--green);background:rgba(52,211,153,.10);}
+  .cg-guess .cg-name{font-weight:800;font-size:17px;margin-bottom:9px;}
+  .cg-chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .cg-chip{background:rgba(56,189,248,.10);border:1.5px solid var(--accent);color:var(--text);border-radius:999px;padding:7px 13px;font-size:14px;font-weight:700;white-space:nowrap;}
+  .cg-chip.good{background:rgba(52,211,153,.14);color:var(--green);border-color:var(--green);}
+  .cg-chip.bad{background:rgba(248,113,113,.14);color:var(--red);border-color:var(--red);}
   .ad-free-badge{
     display:inline-flex;
     align-items:center;
@@ -317,6 +363,7 @@
   <footer class="note">Prototype build · answer data is illustrative and simplified for gameplay, not a cited reference source.<br>Questions or feedback? <a href="mailto:auranandreas@gmail.com" style="color:var(--accent);">auranandreas@gmail.com</a></footer>
 </div>
 
+<nav class="bottom-nav" id="bottomNav"></nav>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -908,11 +955,16 @@ const QUESTIONS = [
   }
 ];
 
-/* Master pool for typeahead suggestions — every world country plus every
-   non-country feature (rivers, mountains, deserts, lakes, islands) used
-   anywhere in the question bank. Shown identically regardless of which
-   round is active, so suggestions never hint at what's correct. */
-const SUGGESTION_POOL = Array.from(new Set([
+/* Category-scoped typeahead suggestions. A single universal pool used to mix
+   every answer from every round together — so an NBA team could show up
+   while guessing "largest urban areas." Instead, each question is classified
+   by the *kind* of answer it wants (country, city, mountain, river, lake,
+   animal, person, org, misc-geoplace) and only shown suggestions pulled from
+   other rounds of that same kind. This keeps suggestions plausible without
+   ever revealing the exact 10 correct answers for the round in play — the
+   pool is always drawn from *other* questions' answer lists, not the current
+   one. */
+const COUNTRY_POOL = [
   "Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda","Argentina","Armenia","Australia","Austria",
   "Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan","Bolivia",
   "Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso","Burundi","Cabo Verde","Cambodia",
@@ -932,9 +984,92 @@ const SUGGESTION_POOL = Array.from(new Set([
   "South Korea","South Sudan","Spain","Sri Lanka","Sudan","Suriname","Sweden","Switzerland","Syria","Taiwan","Tajikistan",
   "Tanzania","Thailand","Timor-Leste","Togo","Tonga","Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Tuvalu",
   "Uganda","Ukraine","United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan","Vanuatu",
-  "Vatican City","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe",
-  ...QUESTIONS.flatMap(q => q.answers)
-])).sort();
+  "Vatican City","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe"
+];
+
+/* Classifies a question by the *kind* of answer it wants, from its title.
+   Keyword-based rather than a hand-tagged field on all 82 questions, so new
+   rounds get sensible suggestions automatically. Falls back to "country",
+   which the large majority of rounds are. */
+function answerTypeFor(q){
+  const t = (q.title || "").toLowerCase();
+  if(/mountain|range/.test(t)) return "mountain";
+  if(/\briver/.test(t)) return "river";  // \b avoids matching "river" inside "Drivers'"
+  if(/lake/.test(t)) return "lake";
+  if(/desert|salt flat/.test(t) || (/island/.test(t) && !/nation/.test(t))) return "geoplace";
+  if(/capital|urban area|airport/.test(t)) return "city";
+  if(/animal|sea creature/.test(t)) return "animal";
+  if(/artist|grammy|monarch|grand slam/.test(t)) return "person";
+  if(/compan(y|ies)|fast food|nba championship|website|currenc/.test(t)) return "org";
+  if(/movie|video game|building|element|empire/.test(t)) return "misc";
+  return "country";
+}
+/* One suggestion pool per answer type, built from every OTHER question's
+   answers of that same type (the country pool covers its own type directly).
+   Because a pool is pulled from many different rounds, it never equals the
+   exact 10-answer set of any single round in play. */
+const SUGGESTION_POOLS_BY_TYPE = (() => {
+  const pools = { country: COUNTRY_POOL.slice() };
+  QUESTIONS.forEach(q=>{
+    const type = answerTypeFor(q);
+    if(type === "country") return;
+    (pools[type] = pools[type] || []).push(...q.answers);
+  });
+  Object.keys(pools).forEach(k => { pools[k] = Array.from(new Set(pools[k])).sort(); });
+  return pools;
+})();
+function suggestionPoolFor(question){
+  const type = question ? answerTypeFor(question) : "country";
+  return SUGGESTION_POOLS_BY_TYPE[type] || SUGGESTION_POOLS_BY_TYPE.country;
+}
+const TYPE_LABELS = {
+  country: "Countries", city: "Cities & Capitals", mountain: "Mountains",
+  river: "Rivers", lake: "Lakes", geoplace: "Deserts & Islands",
+  animal: "Animals", person: "People", org: "Companies & Brands", misc: "Miscellaneous"
+};
+/* Lightweight visual identity per category — simple decorative motifs, not
+   accurate cartography (real per-country map data isn't practical to hand
+   author for 82 rounds). Only ever shown once a round has actually started,
+   never in the round picker, so it can't leak the hidden topic early. */
+const TYPE_VISUALS = {
+  country: `<svg viewBox="0 0 64 64" width="40" height="40"><circle cx="32" cy="32" r="27" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 26h52M6 38h52M22 5c-9 13-9 41 0 54M42 5c9 13 9 41 0 54" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  city: `<svg viewBox="0 0 64 64" width="40" height="40"><rect x="6" y="28" width="10" height="28" fill="currentColor"/><rect x="20" y="12" width="10" height="44" fill="currentColor"/><rect x="34" y="30" width="10" height="26" fill="currentColor"/><rect x="48" y="20" width="9" height="36" fill="currentColor"/></svg>`,
+  mountain: `<svg viewBox="0 0 64 64" width="40" height="40"><path d="M4 54 22 24l10 14 8-10 20 26z" fill="currentColor"/><path d="M22 24l4 6-4 5-4-5z" fill="#fff" opacity=".7"/></svg>`,
+  river: `<svg viewBox="0 0 64 64" width="40" height="40"><path d="M4 20c10 0 10 10 20 10s10-10 20-10 10 10 20 10" fill="none" stroke="currentColor" stroke-width="3"/><path d="M4 34c10 0 10 10 20 10s10-10 20-10 10 10 20 10" fill="none" stroke="currentColor" stroke-width="3" opacity=".55"/></svg>`,
+  lake: `<svg viewBox="0 0 64 64" width="40" height="40"><ellipse cx="32" cy="42" rx="26" ry="13" fill="currentColor" opacity=".8"/><path d="M32 6c8 10 8 18 0 24-8-6-8-14 0-24z" fill="currentColor"/></svg>`,
+  geoplace: `<svg viewBox="0 0 64 64" width="40" height="40"><path d="M4 50h56M10 50l6-14 6 8 8-18 8 12 6-8 6 20" fill="none" stroke="currentColor" stroke-width="2.5"/></svg>`,
+  animal: `<svg viewBox="0 0 64 64" width="40" height="40"><circle cx="19" cy="23" r="6" fill="currentColor"/><circle cx="32" cy="17" r="6" fill="currentColor"/><circle cx="45" cy="23" r="6" fill="currentColor"/><ellipse cx="32" cy="39" rx="16" ry="12" fill="currentColor"/></svg>`,
+  person: `<svg viewBox="0 0 64 64" width="40" height="40"><circle cx="32" cy="18" r="10" fill="currentColor"/><path d="M14 56c0-14 8-22 18-22s18 8 18 22" fill="currentColor"/></svg>`,
+  org: `<svg viewBox="0 0 64 64" width="40" height="40"><rect x="9" y="30" width="13" height="26" fill="currentColor"/><rect x="25" y="18" width="13" height="38" fill="currentColor"/><rect x="41" y="8" width="13" height="48" fill="currentColor"/></svg>`,
+  misc: `<svg viewBox="0 0 64 64" width="40" height="40"><path d="M32 6l7 14 15 2-11 11 3 15-14-8-14 8 3-15L10 22l15-2z" fill="currentColor"/></svg>`
+};
+function getTypeVisual(question){
+  return TYPE_VISUALS[answerTypeFor(question)] || TYPE_VISUALS.misc;
+}
+/* Finds the answer-type a player has the lowest find-rate on, from round
+   history (which includes daily plays, so even free players build up
+   signal here). Needs a couple of rounds of a given type before judging,
+   so a single unlucky round doesn't get flagged as a "weakness". */
+function getWeakestCategory(){
+  const stats = {};
+  state.history.forEach(h => {
+    const q = QUESTIONS.find(x => x.id === h.questionId);
+    if(!q) return;
+    const type = answerTypeFor(q);
+    const s = stats[type] || (stats[type] = { found: 0, total: 0, rounds: 0 });
+    s.found += h.foundCount;
+    s.total += h.total;
+    s.rounds += 1;
+  });
+  let weakest = null;
+  Object.keys(stats).forEach(type => {
+    const s = stats[type];
+    if(s.rounds < 2 || s.total === 0) return;
+    const acc = s.found / s.total;
+    if(!weakest || acc < weakest.acc) weakest = { type, acc, rounds: s.rounds };
+  });
+  return weakest;
+}
 
 /* Aliases for lenient answer-matching. Key = canonical answer text. */
 const ALIASES = {
@@ -1161,7 +1296,6 @@ function renderMuteBtn(){
    STATE
    ========================================================= */
 const STORAGE_KEY = "top10geo_state_v1";
-const FREE_DAILY_PRACTICE_LIMIT = 3;   // non-daily rounds free players get per day
 const PREMIUM_SCORE_MULTIPLIER = 1.25;  // real, functional premium perk
 const STREAK_MILESTONES = { 3: 15, 7: 40, 14: 80, 30: 200, 50: 400, 100: 1000 };
 const LEVEL_TITLES = ["Map Rookie","Trail Finder","Globetrotter","Explorer","Navigator","Cartographer","Geo Master","World Sage","Atlas Legend","Globe Grandmaster"];
@@ -1171,21 +1305,20 @@ function defaultState(){
     streak: 0,
     bestStreak: 0,
     premium: false,
-    trialActive: false,
-    trialUsed: false,
-    trialEndsAt: null,
     lifetime: false,
     dailyDate: null,
     dailyQuestionId: null,
     dailyCompleted: false,
     playedIds: [],
-    practiceDate: null,
-    practiceCount: 0,
     lastSeenLevel: 1,
     shieldDate: null,
     history: [],
     duelRecord: { p1Wins: 0, p2Wins: 0, ties: 0 },
-    seenBadges: []
+    seenBadges: [],
+    blitzBestMs: null,
+    survivalBest: null,
+    countryGame: null,        // { dayIndex, guesses, solved, failed } — today's Guess the Country attempt
+    countryPracticeSolved: 0  // Premium-only practice puzzles solved (random countries, not the daily one)
   };
 }
 const CONTINENTS = ["Africa","Asia","Europe","North America","South America","Oceania"];
@@ -1231,17 +1364,6 @@ function getLevelInfo(score){
   const progress = nextFloor > currentFloor ? (score - currentFloor) / (nextFloor - currentFloor) : 1;
   return { level, title, currentFloor, nextFloor, progress: Math.max(0, Math.min(1, progress)) };
 }
-function practiceBonusForLevel(level){
-  return Math.min(5, Math.floor((level - 1) / 2)); // +1 every 2 levels, capped at +5
-}
-function nextPracticeBonusLevel(level){
-  const currentBonus = practiceBonusForLevel(level);
-  if(currentBonus >= 5) return null; // maxed out
-  for(let l = level + 1; l <= 11; l++){
-    if(practiceBonusForLevel(l) > currentBonus) return l;
-  }
-  return null;
-}
 function addScore(basePoints){
   const amount = Math.round(basePoints * (state.premium ? PREMIUM_SCORE_MULTIPLIER : 1));
   state.score += amount;
@@ -1251,24 +1373,13 @@ function addScore(basePoints){
 function checkLevelUp(){
   const info = getLevelInfo(state.score);
   if(info.level > state.lastSeenLevel){
-    const prevBonus = practiceBonusForLevel(state.lastSeenLevel);
-    const newBonus = practiceBonusForLevel(info.level);
     state.lastSeenLevel = info.level;
-    const unlockMsg = newBonus > prevBonus ? ` +${newBonus} daily practice rounds unlocked!` : "";
-    showToast(`🎉 Level up! You're now Lv.${info.level} — ${info.title}.${unlockMsg}`);
+    showToast(`🎉 Level up! You're now Lv.${info.level} — ${info.title}.`);
     AudioFX.win();
   }
 }
 function streakShieldAvailable(){
   return state.premium && state.shieldDate !== todayStr();
-}
-function checkTrialExpiry(){
-  if(state.trialActive && state.trialEndsAt && Date.now() > state.trialEndsAt){
-    state.trialActive = false;
-    state.premium = false;
-    saveState();
-    showToast("⏰ Your free trial has ended");
-  }
 }
 let state = loadState();
 function loadState(){
@@ -1282,32 +1393,22 @@ function saveState(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   renderPills();
 }
+/* Both date helpers use UTC so the daily question and streak/shield resets
+   happen at one consistent moment worldwide (UTC midnight), rather than at
+   each player's own local midnight. */
 function todayStr(){
   const d = new Date();
-  return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();
+  return d.getUTCFullYear()+"-"+(d.getUTCMonth()+1)+"-"+d.getUTCDate();
 }
 function dayOfYear(){
   const d = new Date();
-  const start = new Date(d.getFullYear(),0,0);
-  const diff = d - start;
-  return Math.floor(diff / 86400000);
+  const start = Date.UTC(d.getUTCFullYear(), 0, 0);
+  const now = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return Math.floor((now - start) / 86400000);
 }
 function getDailyQuestion(){
   const idx = dayOfYear() % QUESTIONS.length;
   return QUESTIONS[idx];
-}
-function ensurePracticeDay(){
-  if(state.practiceDate !== todayStr()){
-    state.practiceDate = todayStr();
-    state.practiceCount = 0;
-  }
-}
-function effectivePracticeLimit(){
-  return FREE_DAILY_PRACTICE_LIMIT + practiceBonusForLevel(getLevelInfo(state.score).level);
-}
-function practiceRemaining(){
-  ensurePracticeDay();
-  return Math.max(0, effectivePracticeLimit() - state.practiceCount);
 }
 
 /* =========================================================
@@ -1357,13 +1458,8 @@ function applyServerProfile(p){
   state.streak = p.streak;
   state.bestStreak = p.best_streak;
   state.premium = p.premium;
-  state.trialUsed = p.trial_used;
-  state.trialActive = p.premium_source === "trial";
-  state.trialEndsAt = p.trial_ends_at ? new Date(p.trial_ends_at).getTime() : null;
   state.lifetime = p.lifetime;
   state.shieldDate = p.shield_date;
-  state.practiceDate = p.practice_date;
-  state.practiceCount = p.practice_count;
   state.lastSeenLevel = p.last_seen_level;
   saveState();
 }
@@ -1422,12 +1518,79 @@ function buildAliasSet(answerName){
   }
   return set;
 }
+/* Typo forgiveness: if a guess doesn't exactly match any alias but is a
+   near-miss (edit distance) on a still-unfound answer, count it as correct
+   instead of costing a life over a misspelling. Thresholds scale with word
+   length and stay at 0 for short words, where a 1-letter edit distance can
+   flip one real answer into a different real one (e.g. "Chad" vs "China"). */
+function levenshtein(a, b){
+  const m = a.length, n = b.length;
+  if(m === 0) return n;
+  if(n === 0) return m;
+  const dp = new Array(n + 1);
+  for(let j = 0; j <= n; j++) dp[j] = j;
+  for(let i = 1; i <= m; i++){
+    let prev = dp[0];
+    dp[0] = i;
+    for(let j = 1; j <= n; j++){
+      const tmp = dp[j];
+      dp[j] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[j], dp[j - 1]);
+      prev = tmp;
+    }
+  }
+  return dp[n];
+}
+function fuzzyMatchThreshold(len){
+  if(len <= 4) return 0;
+  if(len <= 7) return 1;
+  return 2;
+}
+function findFuzzyMatch(norm, question, foundArr){
+  let bestIdx = -1, bestDist = Infinity;
+  for(let i = 0; i < question.answers.length; i++){
+    if(foundArr[i]) continue;
+    const canon = normalize(question.answers[i]);
+    const threshold = fuzzyMatchThreshold(canon.length);
+    if(threshold === 0) continue;
+    const dist = levenshtein(norm, canon);
+    if(dist > 0 && dist <= threshold && dist < bestDist){
+      bestDist = dist;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
 function showToast(msg){
   const t = document.getElementById("toast");
   t.textContent = msg;
   t.classList.add("show");
   clearTimeout(showToast._t);
   showToast._t = setTimeout(()=>t.classList.remove("show"), 1800);
+}
+/* Persistent bottom navigation, present on every screen so players don't
+   have to hunt for a "back home" button to reach another section. Each
+   render* view sets the active tab by calling setActiveNav() near the top
+   of its function. */
+const NAV_ITEMS = [
+  { id: "home",    icon: "🏠", label: "Home",    go: "goHome()" },
+  { id: "guessgame", icon: "🌎", label: "Guess", go: "renderCountryGame()" },
+  { id: "practice",icon: "🏆", label: "Compete", go: "renderLevels()" },
+  { id: "duel",    icon: "⚔️", label: "Duel",     go: "state.premium ? renderDuelPicker() : renderPremium()" },
+  { id: "bests",   icon: "🏅", label: "Bests",    go: "renderTopRounds()" },
+  { id: "premium", icon: "✨", label: state.premium ? "Account" : "Premium", go: "renderPremium()" }
+];
+let activeNavTab = "home";
+function setActiveNav(id){
+  activeNavTab = id;
+  renderBottomNav();
+}
+function renderBottomNav(){
+  const nav = document.getElementById("bottomNav");
+  if(!nav) return;
+  nav.innerHTML = NAV_ITEMS.map(item => `
+    <button class="${activeNavTab===item.id ? 'active' : ''}" onclick="${item.go}">
+      <span class="icon">${item.icon}</span>${item.id === "premium" ? (state.premium ? "Account" : "Premium") : item.label}
+    </button>`).join("");
 }
 function renderPills(){
   document.getElementById("pillStreak").textContent = state.streak;
@@ -1444,12 +1607,36 @@ function renderPills(){
 const main = document.getElementById("main");
 function goHome(){ renderHome(); }
 
+/* First-visit intro: a brief pitch plus the actual rules, shown once (and
+   never again — tracked with its own localStorage key, separate from game
+   state) before dropping a new player into the normal home screen. Skipped
+   entirely for returning players and for anyone landing mid-checkout-flow. */
+const WELCOME_SEEN_KEY = "top10geo_seen_welcome_v1";
+function renderWelcome(){
+  main.innerHTML = `
+    <div class="card center">
+      <h2>🌍 Welcome to Top 10 Geo</h2>
+      <p class="sub">82 "Top 10" trivia rounds — countries, mountains, rivers, capitals, and more. Name as many of the real top 10 as you can before you run out of lives.</p>
+    </div>
+    <div class="card">
+      <h2>📖 How to play</h2>
+      <p class="sub">Each round asks for 10 answers (e.g. "largest countries by area"). Type any of the 10, in any order — a wrong guess costs one of your 5 lives. Find all 10 to clear the round.</p>
+      <p class="sub">One question is free every day, no account needed. The round picker keeps each round's topic hidden until you start it, so nothing gives the category away early.</p>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="dismissWelcome()">▶ Let's play</button>
+  `;
+}
+function dismissWelcome(){
+  try{ localStorage.setItem(WELCOME_SEEN_KEY, "1"); }catch(e){}
+  renderHome();
+}
+
 function renderHome(){
-  checkTrialExpiry();
+  setActiveNav("home");
   const daily = getDailyQuestion();
   const playedToday = state.dailyDate === todayStr() && state.dailyCompleted;
   const info = getLevelInfo(state.score);
-  const nextBonusLvl = nextPracticeBonusLevel(info.level);
+  const weakest = getWeakestCategory();
   main.innerHTML = `
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;">
@@ -1457,35 +1644,53 @@ function renderHome(){
         <div style="color:var(--text-dim);font-size:12px;">${state.score - info.currentFloor}/${info.nextFloor - info.currentFloor} XP to Lv.${info.level+1}</div>
       </div>
       <div class="progress-bar"><div style="width:${Math.round(info.progress*100)}%"></div></div>
-      ${!state.premium ? `<p class="sub" style="margin:8px 0 0;font-size:12px;">${nextBonusLvl ? `🔓 Next unlock: +1 daily practice round at Lv.${nextBonusLvl}` : `🔓 Max free practice bonus reached (+${practiceBonusForLevel(info.level)}/day)`}</p>` : ''}
+      <p class="sub" style="margin:8px 0 0;font-size:12px;">🗺️ ${getCompletedQuestionIds().size}/${QUESTIONS.length} rounds cleared overall</p>
     </div>
 
     <div class="card">
-      <span class="badge ${daily.difficulty}">${daily.difficulty}</span>
-      <h2 style="margin-top:8px;">${daily.icon || "🌍"} Today's Free Question</h2>
-      <p class="sub">${daily.prompt}</p>
+      <span class="badge ${daily.difficulty}">${LEVEL_ICON[daily.difficulty] || "🌍"} ${daily.difficulty}</span>
+      <h2 style="margin-top:8px;">🌍 Today's Free Question</h2>
+      <p class="sub">One new round every day, free for everyone. The topic's a surprise until you press play.</p>
       ${playedToday
         ? `<button class="btn btn-outline btn-block" disabled>Come back tomorrow ✅</button>`
         : `<button class="btn btn-primary btn-block" onclick="startRound(${daily.id}, true)">▶ Play Today's Question</button>`
       }
     </div>
 
+    <div class="card" style="border-color:var(--accent-2);">
+      <span class="badge medium">New</span>
+      <h2 style="margin-top:8px;">🌎 Guess the Country</h2>
+      <p class="sub">Wordle-style daily puzzle — 6 guesses to name a mystery country, with continent, size, population, direction, and ${rotatingStatForToday().label} hints after each try.</p>
+      <button class="btn btn-primary btn-block" onclick="renderCountryGame()">▶ Play</button>
+    </div>
+
+    ${weakest ? `
+    <div class="card" style="border-color:var(--accent);">
+      <p class="sub" style="margin:0;">📊 You've found <b style="color:#e2e8f0">${Math.round(weakest.acc*100)}%</b> of answers on <b style="color:#e2e8f0">${TYPE_LABELS[weakest.type]}</b> rounds — your toughest category so far. ${state.premium ? 'Want another shot?' : 'Premium unlocks every round to work on it.'}</p>
+      <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="${state.premium ? "renderLevels()" : "renderPremium()"}">${state.premium ? '🏆 Compete' : '✨ Go Premium'}</button>
+    </div>` : ''}
+
     <div class="card">
-      <h2>🧩 Practice Mode</h2>
+      <h2>🏆 Compete</h2>
       <p class="sub">${state.premium
-        ? "Browse Geography and 🎉 General Knowledge by difficulty — unlimited rounds, every level."
-        : `Browse the question bank. Free players get ${effectivePracticeLimit()} practice rounds a day on Geography Easy (level up to raise this); Premium unlocks unlimited rounds on every level, plus the 🎉 General Knowledge tier. ${practiceRemaining()} left today.`
+        ? "Play any round across Geography and 🎉 General Knowledge, every difficulty, unlocked in order as you clear them. Every round gets a live leaderboard the moment you finish it, plus the option to challenge a friend."
+        : "Competing is a Premium perk. Free players get the one daily question above; Premium unlocks every difficulty and the whole 🎉 General Knowledge topic — each round comes with a leaderboard and friend challenges."
       }</p>
-      <button class="btn btn-outline btn-block" onclick="renderLevels()">Browse Categories</button>
+      <button class="btn btn-outline btn-block" onclick="renderLevels()">🏆 Compete</button>
     </div>
 
     <div class="card">
-      <h2>⚔️ Duel Mode</h2>
+      <h2>🎮 Game Modes</h2>
       <p class="sub">${state.premium
-        ? "Pass-and-play head-to-head: same question, same device. Whoever names the most wins; speed breaks ties."
-        : "Premium exclusive. Hand the phone to a friend and see who can name more of the top 10 — same question, same device."
+        ? "Duel: pass-and-play head-to-head, same question, same device. Blitz: race the clock through rounds you've cleared. Survival: chain rounds back-to-back — one slip ends the run."
+        : "Duel, Blitz, and Survival are Premium modes — a head-to-head, a speed test, and an endurance test."
       }</p>
-      <button class="btn ${state.premium ? 'btn-primary' : 'btn-outline'} btn-block" onclick="${state.premium ? 'renderDuelPicker()' : 'renderPremium()'}">${state.premium ? '⚔️ Start a Duel' : '🔒 Unlock Duel Mode'}</button>
+      <div class="row">
+        <button class="btn ${state.premium ? 'btn-primary' : 'btn-outline'} btn-block" onclick="${state.premium ? 'renderDuelPicker()' : 'renderPremium()'}">${state.premium ? '⚔️ Duel' : '🔒 Duel'}</button>
+        <button class="btn btn-outline btn-block" onclick="${state.premium ? 'startBlitz()' : 'renderPremium()'}">${state.premium ? '⚡ Blitz' : '🔒 Blitz'}</button>
+        <button class="btn btn-outline btn-block" onclick="${state.premium ? 'startSurvival()' : 'renderPremium()'}">${state.premium ? '🔥 Survival' : '🔒 Survival'}</button>
+      </div>
+      ${state.premium && state.blitzBestMs ? `<p class="sub" style="margin:8px 0 0;font-size:12px;">⚡ Best Blitz: ${(state.blitzBestMs/1000).toFixed(1)}s${state.survivalBest ? ` &nbsp;·&nbsp; 🔥 Best Survival: ${state.survivalBest}` : ''}</p>` : ''}
     </div>
 
     <div class="card">
@@ -1498,8 +1703,8 @@ function renderHome(){
     <div class="card" style="border-color:#f59e0b;">
       <span class="badge medium">Premium</span>
       <h2 style="margin-top:8px;">✨ Go Premium</h2>
-      <p class="sub">Unlock Medium, Hard &amp; the niche 🟣 Expert tier, the whole 🎉 General Knowledge topic, Duel Mode, a daily 🛡️ Streak Shield, unlimited daily practice, and a ${Math.round((PREMIUM_SCORE_MULTIPLIER-1)*100)}% score boost on every round.${!state.trialUsed ? ' 🎁 First 7 days free.' : ''}</p>
-      <button class="btn btn-gold btn-block" style="margin-top:12px;" onclick="renderPremium()">${!state.trialUsed ? '🎁 Try Free for 7 Days' : 'See Plans'}</button>
+      <p class="sub">Free plays the one daily question. Premium unlocks every round on Geography and 🎉 General Knowledge — each with a live leaderboard and friend challenges — plus Duel Mode, a daily 🛡️ Streak Shield, and a ${Math.round((PREMIUM_SCORE_MULTIPLIER-1)*100)}% score boost — from $3.99/month.</p>
+      <button class="btn btn-gold btn-block" style="margin-top:12px;" onclick="renderPremium()">See Plans</button>
     </div>` : `
     <div class="card" style="border-color:#fbbf24;">
       <h2>★ You're Premium</h2>
@@ -1512,34 +1717,42 @@ function renderHome(){
 }
 
 const LEVEL_ICON = { easy: "🟢", medium: "🟡", hard: "🔴", expert: "🟣" };
+function handleLockedRound(needsPremium){
+  if(needsPremium){ renderPremium(); }
+  else { showToast("🔒 Play the previous round in this tier first"); }
+}
 function renderLevels(topic){
+  setActiveNav("practice");
   topic = topic || "geography";
   const levels = ["easy","medium","hard","expert"];
-  const remaining = practiceRemaining();
-  const outOfPractice = !state.premium && remaining <= 0;
   const isGeneral = topic === "general";
+  const completed = getCompletedQuestionIds();
+  const attempted = new Set(state.playedIds || []);
   let html = `<div class="card">
-    <h2>🧭 Categories</h2>
-    <p class="sub">Pick a round to practice. Order within a round doesn't matter — just name 10 correct answers before you run out of lives.</p>
+    <h2>🏆 Compete</h2>
+    <p class="sub">Rounds unlock one at a time — play a round (win or lose) to open the next one in that tier. Find all 10 for full credit toward your streak and badges. Every round gets a live leaderboard the moment you finish it, plus the option to challenge a friend. The topic stays hidden until you start.</p>
     <div class="nav-tabs">
       <button class="${!isGeneral?'active':''}" onclick="renderLevels('geography')">🌍 Geography</button>
       <button class="${isGeneral?'active':''}" onclick="renderLevels('general')">🎉 General Knowledge</button>
     </div>
-    ${!state.premium && !isGeneral ? `<p class="sub" style="margin-top:-8px;">🎟️ ${remaining} of ${effectivePracticeLimit()} free practice rounds left today</p>` : ''}
-    ${isGeneral && !state.premium ? `<p class="sub" style="margin-top:-8px;">🔒 General Knowledge is Premium-exclusive, at every difficulty.</p>` : ''}
+    ${!state.premium ? `<p class="sub" style="margin-top:-8px;">🔒 These rounds are a Premium perk — free players get the daily question. <a href="javascript:void(0)" onclick="renderPremium()" style="color:var(--accent);">See plans →</a></p>` : ''}
   </div>`;
   levels.forEach(lvl=>{
-    const qs = QUESTIONS.filter(q=>q.difficulty===lvl && (q.topic||"geography")===topic);
+    const qs = QUESTIONS.filter(q=>q.difficulty===lvl && (q.topic||"geography")===topic).sort((a,b)=>a.id-b.id);
     if(qs.length === 0) return;
-    const levelLocked = isGeneral ? !state.premium : (lvl !== "easy" && !state.premium);
-    const locked = levelLocked || outOfPractice;
-    const lockReason = levelLocked ? "🔒 Premium" : (outOfPractice ? "🔒 Daily limit reached" : "");
-    html += `<div class="card"><span class="badge ${lvl}">${LEVEL_ICON[lvl]} ${lvl}</span>${lockReason ? `<span class="badge locked" style="margin-left:6px;">${lockReason}</span>` : ''}<div class="cat-list" style="margin-top:12px;">`;
-    qs.forEach(q=>{
-      html += `<div class="cat-item ${locked?'locked':''}" onclick="${locked? `renderPremium()` : `startRound(${q.id}, false)`}">
-        <div class="name">${q.icon || "🌍"} ${q.title}</div>
-        <div style="color:var(--text-dim);font-size:12px;">${locked ? '🔒' : '▶'}</div>
+    html += `<div class="card"><span class="badge ${lvl}">${LEVEL_ICON[lvl]} ${lvl}</span>${!state.premium ? `<span class="badge locked" style="margin-left:6px;">🔒 Premium</span>` : ''}<div class="cat-list" style="margin-top:12px;">`;
+    let prevAttempted = true;
+    qs.forEach((q, i)=>{
+      const isCleared = completed.has(q.id);
+      const wasAttempted = attempted.has(q.id);
+      const needsPremium = !state.premium;
+      const locked = needsPremium || !prevAttempted;
+      const lockLabel = locked ? '🔒' : (isCleared ? '✅' : (wasAttempted ? '↻' : '▶'));
+      html += `<div class="cat-item ${locked?'locked':''}" onclick="${locked ? `handleLockedRound(${needsPremium})` : `startRound(${q.id}, false)`}">
+        <div class="name">${LEVEL_ICON[lvl]} Round ${i+1}</div>
+        <div style="color:var(--text-dim);font-size:12px;">${lockLabel}</div>
       </div>`;
+      prevAttempted = wasAttempted;
     });
     html += `</div></div>`;
   });
@@ -1548,10 +1761,8 @@ function renderLevels(topic){
 }
 
 function renderPremium(){
-  checkTrialExpiry();
+  setActiveNav("premium");
   const boost = Math.round((PREMIUM_SCORE_MULTIPLIER-1)*100);
-  const canTrial = !state.premium && !state.trialUsed;
-  const daysLeft = state.trialActive ? Math.max(0, Math.ceil((state.trialEndsAt - Date.now()) / 86400000)) : 0;
   const signedIn = backendEnabled && !!authSession;
   const btnLabel = backendEnabled ? { sub: "Subscribe", lifetime: "Buy Lifetime" } : { sub: "Simulate Subscribe", lifetime: "Simulate Purchase" };
 
@@ -1570,27 +1781,28 @@ function renderPremium(){
   main.innerHTML = `
     <div class="card">
       <h2>✨ Upgrade to Premium</h2>
+      <p class="sub">Free plays one question a day — that's it. Premium is the whole game: every difficulty, every topic, unlocked round by round, whenever you want to play.</p>
       <p class="sub">${backendEnabled ? "Real payments via Stripe — cancel or manage anytime from the billing portal below." : "This is a local demo toggle — no payment is collected. Deploy the webapp/ backend to turn this into real Stripe billing."}</p>
-      <div class="ad-free-badge">🚫📺 Top 10 Geo is ad-free for everyone — that part's not a paywall</div>
+      <div class="ad-free-badge">🚫📺 Ad-free for everyone — that part's not a paywall</div>
     </div>
     ${authHtml}
-    ${canTrial ? `
-    <div class="card" style="border-color:var(--accent);">
-      <h2>🎁 Try Premium free for 7 days</h2>
-      <p class="sub">Full access to every level, 🎉 General Knowledge, Duel Mode, and the score boost. Cancel anytime — you won't be charged during the trial, and it's a one-time offer per player.</p>
-      <button class="btn btn-primary btn-block" onclick="activatePremium('trial')" ${backendEnabled && !signedIn ? 'disabled' : ''}>Start Free Trial</button>
-    </div>` : ''}
-    ${state.trialActive ? `
-    <div class="card" style="border-color:var(--accent);">
-      <h2>🎁 Free trial active</h2>
-      <p class="sub">${daysLeft} day${daysLeft===1?'':'s'} left. Subscribe below any time to keep Premium after your trial ends — or it'll automatically switch back to Free.</p>
-    </div>` : ''}
+    <div class="card" style="border-color:#f59e0b;">
+      <h2>Why upgrade?</h2>
+      <ul style="margin:8px 0 0;padding-left:18px;color:var(--text-dim);font-size:14px;line-height:1.7;">
+        <li><b style="color:#e2e8f0">Actually play, any time.</b> Free is capped at one round a day. Premium removes that cap entirely.</li>
+        <li><b style="color:#e2e8f0">🔓 4x the difficulty.</b> Medium, Hard, and the niche 🟣 Expert tier — Easy alone barely scratches the question bank.</li>
+        <li><b style="color:#e2e8f0">🎉 A whole second topic.</b> General Knowledge (movies, music, animals, sports, business, and more) is 100% Premium-exclusive.</li>
+        <li><b style="color:#e2e8f0">⚔️ Duel Mode.</b> Pass-and-play head-to-head against a friend.</li>
+        <li><b style="color:#e2e8f0">🛡️ Streak Shield.</b> One free save per day so a bad round doesn't zero out a streak you've been building.</li>
+        <li><b style="color:#e2e8f0">🔥 +${boost}% score</b> on every correct answer and round bonus.</li>
+      </ul>
+    </div>
     <div class="plans">
       <div class="plan">
         <div>🗓️ Monthly</div>
         <div class="price">$3.99 <span>/ month</span></div>
         <ul>
-          <li>♾️ Unlimited practice rounds (vs. ${effectivePracticeLimit()}/day on your current free tier)</li>
+          <li>♾️ Unlimited rounds to compete on — free is 1 question/day, period</li>
           <li>🔓 Medium, Hard &amp; niche 🟣 Expert difficulty, plus 🎉 General Knowledge</li>
           <li>⚔️ Duel Mode — pass-and-play head-to-head</li>
           <li>🛡️ Daily Streak Shield</li>
@@ -1619,7 +1831,7 @@ function renderPremium(){
         <button class="btn btn-outline btn-block" style="margin-top:12px;" onclick="activatePremium('lifetime')" ${backendEnabled && !signedIn ? 'disabled' : ''}>${btnLabel.lifetime}</button>
       </div>
     </div>
-    ${state.premium && !state.lifetime ? `<button class="btn btn-outline btn-block" onclick="deactivatePremium()">${backendEnabled ? 'Manage billing / cancel' : 'Cancel ' + (state.trialActive ? 'trial' : 'demo subscription')}</button>` : ''}
+    ${state.premium && !state.lifetime ? `<button class="btn btn-outline btn-block" onclick="deactivatePremium()">${backendEnabled ? 'Manage billing / cancel' : 'Cancel demo subscription'}</button>` : ''}
     <button class="btn btn-outline btn-block" onclick="goHome()">← Back home</button>
   `;
 }
@@ -1630,16 +1842,8 @@ async function activatePremium(mode, opts){
   if(backendEnabled){
     if(!authSession){ showToast("👤 Sign in first — see the box above"); renderPremium(); return; }
     try{
-      if(mode === 'trial'){
-        const { profile } = await apiFetch("/api/start-trial", { method: "POST" });
-        applyServerProfile(profile);
-        AudioFX.win();
-        showToast("🎁 7-day free trial started!");
-        goHome();
-      } else {
-        const { url } = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify({ plan: mode }) });
-        window.location.href = url; // hand off to real Stripe Checkout
-      }
+      const { url } = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify({ plan: mode }) });
+      window.location.href = url; // hand off to real Stripe Checkout
     } catch(e){
       showToast("⚠️ " + e.message);
       renderPremium();
@@ -1649,20 +1853,11 @@ async function activatePremium(mode, opts){
 
   // Local demo mode (no backend configured yet) — unchanged simulate behavior.
   state.premium = true;
-  if(mode === 'trial'){
-    state.trialActive = true;
-    state.trialUsed = true;
-    state.trialEndsAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
-  } else if(mode === 'lifetime'){
-    state.lifetime = true;
-    state.trialActive = false;
-  } else {
-    state.trialActive = false;
-  }
+  state.lifetime = mode === 'lifetime';
   saveState();
   if(!opts.silent){
     AudioFX.win();
-    showToast(mode === 'trial' ? "🎁 7-day free trial started!" : mode === 'lifetime' ? "♾️ Lifetime Premium activated!" : "★ Premium activated (demo)");
+    showToast(mode === 'lifetime' ? "♾️ Lifetime Premium activated!" : "★ Premium activated (demo)");
     goHome();
   }
 }
@@ -1678,7 +1873,6 @@ async function deactivatePremium(){
     return;
   }
   state.premium = false;
-  state.trialActive = false;
   saveState();
   goHome();
 }
@@ -1688,27 +1882,39 @@ async function deactivatePremium(){
    ========================================================= */
 let roundState = null;
 let duelState = null;
-function startRound(questionId, isDaily, duelCtx){
+function startRound(questionId, isDaily, duelCtx, opts){
   const q = QUESTIONS.find(x=>x.id===questionId);
   if(!q) return;
-  if(!duelCtx && !isDaily && !state.premium){
-    if(practiceRemaining() <= 0){
-      showToast("🎟️ Out of free practice rounds for today");
+  const isChallenge = !!(opts && opts.mode === 'challenge');
+  // A challenge round is a one-off invite from a friend — it bypasses the
+  // normal Premium/sequential gating entirely (same idea as Duel Mode),
+  // since the point is letting anyone accept a specific invited round.
+  if(!duelCtx && !isDaily && !isChallenge){
+    if(!state.premium){
+      showToast("🔒 Competing requires Premium — free players get the daily question");
       renderPremium();
       return;
     }
-    state.practiceCount++;
-    saveState();
+    const tier = QUESTIONS.filter(x => x.difficulty === q.difficulty && (x.topic||"geography") === (q.topic||"geography")).sort((a,b)=>a.id-b.id);
+    const idx = tier.findIndex(x=>x.id===q.id);
+    if(idx > 0 && !(state.playedIds||[]).includes(tier[idx-1].id)){
+      showToast("🔒 Play the previous round in this tier first");
+      renderLevels((q.topic||"geography") === "general" ? "general" : "geography");
+      return;
+    }
   }
   roundState = {
     question: q,
     isDaily: isDaily,
     duel: duelCtx || null,
+    mode: (opts && opts.mode) || null,
+    challengeId: (opts && opts.challengeId) || null,
     startedAt: Date.now(),
     lives: 5,
     found: new Array(q.answers.length).fill(null),
     foundCount: 0,
     wrongGuesses: new Set(),
+    categoryPromptShown: false,
     over: false
   };
   renderRound();
@@ -1736,6 +1942,9 @@ function renderRound(){
         <div class="lives">${heartsHtml}</div>
       </div>
       ${rs.duel ? `<div class="badge expert" style="margin-top:8px;">⚔️ Player ${rs.duel.player}'s turn</div>` : ''}
+      ${rs.mode === 'blitz' ? `<div class="badge expert" style="margin-top:8px;">⚡ Blitz — round ${blitzState.index+1}/${blitzState.ids.length}</div>` : ''}
+      ${rs.mode === 'survival' ? `<div class="badge expert" style="margin-top:8px;">🔥 Survival — ${survivalState.cleared} cleared</div>` : ''}
+      <div class="round-visual">${getTypeVisual(q)}</div>
       <h2 style="margin-top:10px;">${q.icon || "🌍"} ${q.title}</h2>
       <p class="sub">${q.prompt}</p>
       <div class="progress-bar"><div style="width:${(rs.foundCount/q.answers.length)*100}%"></div></div>
@@ -1760,7 +1969,8 @@ function renderRound(){
 function getSuggestionMatches(query){
   const q = (query||"").trim().toLowerCase();
   if(q.length < 1) return [];
-  return SUGGESTION_POOL.filter(name => name.toLowerCase().startsWith(q)).slice(0,6);
+  const pool = suggestionPoolFor(roundState && roundState.question);
+  return pool.filter(name => name.toLowerCase().startsWith(q)).slice(0,6);
 }
 function handleTypeahead(value){
   const box = document.getElementById("suggestions");
@@ -1787,6 +1997,53 @@ function hideSuggestions(){
 }
 function hideSuggestionsSoon(){
   setTimeout(hideSuggestions, 150);
+}
+
+/* Mini-bonus that leans into the hidden-title mechanic instead of just being
+   a spoiler-blocker: once a player finds their first 3 answers, ask them to
+   guess what the round is actually about, for a small score bonus. Skipped
+   in Duel Mode since that's a speed contest. */
+function renderCategoryGuessPrompt(){
+  const rs = roundState;
+  const q = rs.question;
+  const correctType = answerTypeFor(q);
+  const distractors = Object.keys(TYPE_LABELS).filter(t => t !== correctType);
+  for(let i = distractors.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [distractors[i], distractors[j]] = [distractors[j], distractors[i]];
+  }
+  const options = [correctType, ...distractors.slice(0, 3)];
+  for(let i = options.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [options[i], options[j]] = [options[j], options[i]];
+  }
+  main.innerHTML = `
+    <div class="card center">
+      <h2>🔮 Bonus guess</h2>
+      <p class="sub">You've found 3 answers — what do you think this round is about?</p>
+      <div class="cat-list">
+        ${options.map(t => `<button class="btn btn-outline btn-block" onclick="answerCategoryGuess('${t}')">${TYPE_LABELS[t]}</button>`).join("")}
+      </div>
+      <button class="btn btn-outline btn-block" style="margin-top:10px;opacity:.7;" onclick="skipCategoryGuess()">Skip</button>
+    </div>
+  `;
+}
+function answerCategoryGuess(guessType){
+  const rs = roundState;
+  if(!rs || rs.over) return;
+  const correct = answerTypeFor(rs.question) === guessType;
+  if(correct){
+    const bonus = addScore(10);
+    showToast(`🔮 Nice guess! +${bonus} bonus points`);
+    AudioFX.win();
+  } else {
+    showToast("🔮 Not quite — keep playing!");
+  }
+  saveState();
+  renderRound();
+}
+function skipCategoryGuess(){
+  renderRound();
 }
 
 function useHint(){
@@ -1821,6 +2078,11 @@ function submitGuess(e, fromSuggestion){
     const set = buildAliasSet(q.answers[i]);
     if(set.has(norm)){ matchedIndex = i; break; }
   }
+  let fuzzy = false;
+  if(matchedIndex === -1){
+    const fuzzyIdx = findFuzzyMatch(norm, q, rs.found);
+    if(fuzzyIdx !== -1){ matchedIndex = fuzzyIdx; fuzzy = true; }
+  }
 
   const feedback = document.getElementById("feedback");
 
@@ -1830,11 +2092,18 @@ function submitGuess(e, fromSuggestion){
     const POINTS_BY_DIFFICULTY = { easy: 7, medium: 10, hard: 15, expert: 22 };
     addScore(POINTS_BY_DIFFICULTY[q.difficulty] || 7);
     AudioFX.correct();
-    feedback.textContent = "✅ Correct! " + q.answers[matchedIndex] + " is on the list.";
+    feedback.textContent = fuzzy
+      ? "🤏 So close — we'll count it! " + q.answers[matchedIndex] + " is on the list."
+      : "✅ Correct! " + q.answers[matchedIndex] + " is on the list.";
     feedback.className = "feedback ok";
     saveState();
     if(rs.foundCount === q.answers.length){
       finishRound(true);
+      return;
+    }
+    if(rs.foundCount === 3 && !rs.categoryPromptShown && !rs.duel && !rs.mode){
+      rs.categoryPromptShown = true;
+      renderCategoryGuessPrompt();
       return;
     }
   } else {
@@ -1872,12 +2141,17 @@ function finishRound(completedAll){
     finishDuelLeg(completedAll);
     return;
   }
+  // Blitz/Survival are self-contained side challenges, same as Duel — they
+  // don't touch the main streak/badge/server-sync pipeline, just like Duel
+  // legs don't either.
+  if(rs.mode === 'blitz'){ finishBlitzLeg(completedAll); return; }
+  if(rs.mode === 'survival'){ finishSurvivalLeg(completedAll); return; }
 
   const wouldLoseStreak = !completedAll && rs.foundCount < q.answers.length && rs.lives <= 0
     && state.streak > 0 && !state.premium;
   if(wouldLoseStreak){
     renderStreakSaveOffer();
-    return; // paused — resumes via saveStreakWithTrial() or declineStreakSave()
+    return; // paused — resumes via saveStreakWithPremium() or declineStreakSave()
   }
   finalizeRound(completedAll, false);
 }
@@ -1885,44 +2159,39 @@ function finishRound(completedAll){
 function renderStreakSaveOffer(){
   const rs = roundState;
   const q = rs.question;
-  const canTrial = !state.trialUsed;
   main.innerHTML = `
     <div class="card center" style="border-color:var(--red);">
       <h2>💔 About to lose your ${state.streak}-round streak</h2>
       <p class="sub">You found ${rs.foundCount} of ${q.answers.length} this round — not enough to keep it going. Premium's 🛡️ Streak Shield automatically protects your streak the next time this happens.</p>
-      <button class="btn btn-gold btn-block" onclick="saveStreakWithTrial()">${canTrial ? '🎁 Start free trial & save my streak' : '🛡️ Go Premium & save my streak'}</button>
+      <button class="btn btn-gold btn-block" onclick="saveStreakWithPremium()">🛡️ Go Premium &amp; save my streak</button>
       <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="declineStreakSave()">No thanks, reset my streak</button>
     </div>
   `;
 }
-async function saveStreakWithTrial(){
+async function saveStreakWithPremium(){
   if(backendEnabled){
     if(!authSession){
-      showToast("👤 Sign in on the Premium screen to save streaks with a free trial");
+      showToast("👤 Sign in on the Premium screen to subscribe");
       finalizeRound(false, false);
       return;
     }
-    if(state.trialUsed){
-      showToast("Already used your trial — subscribe from the Premium screen to protect future streaks");
-      finalizeRound(false, false);
-      return;
-    }
+    // Real payment can't complete instantly — Stripe Checkout is a redirect,
+    // not a synchronous call — so this round's streak still resets now.
+    // Once Premium is active, the daily Shield auto-protects every streak
+    // from here on, which is the honest version of this offer.
+    finalizeRound(false, false);
     try{
-      const { profile } = await apiFetch("/api/start-trial", { method: "POST" });
-      applyServerProfile(profile);
-      state.shieldDate = todayStr();
-      showToast("🎁 Free trial started — streak saved!");
+      const { url } = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify({ plan: 'monthly' }) });
+      window.location.href = url;
     } catch(e){
       showToast("⚠️ " + e.message);
-      finalizeRound(false, false);
-      return;
     }
-  } else {
-    const mode = state.trialUsed ? 'monthly' : 'trial';
-    activatePremium(mode, {silent: true});
-    state.shieldDate = todayStr();
-    showToast(mode === 'trial' ? "🎁 Free trial started — streak saved!" : "★ Premium activated — streak saved!");
+    return;
   }
+  // Local demo mode — unchanged simulate behavior, instant.
+  activatePremium('monthly', {silent: true});
+  state.shieldDate = todayStr();
+  showToast("★ Premium activated — streak saved!");
   finalizeRound(false, true);
 }
 function declineStreakSave(){
@@ -1989,13 +2258,37 @@ function finalizeRound(completedAll, shieldAlreadyUsed){
       <div class="slots" style="text-align:left;">${revealHtml}</div>
       <div class="fact-box"><b>💡 Did you know?</b> ${q.fact}</div>
       ${newBadges.length ? `<div class="fact-box" style="border-color:var(--gold);background:rgba(251,191,36,.08);"><b>🏅 New badge${newBadges.length>1?'s':''}!</b> ${newBadges.map(b=>b.icon+' '+b.label).join(', ')}</div>` : ''}
+      ${backendEnabled && authSession && !rs.duel ? `<div id="roundLeaderboard"></div>` : ''}
       <div class="row" style="margin-top:16px;">
         <button class="btn btn-outline btn-block" onclick="goHome()">🏠 Home</button>
         <button class="btn btn-primary btn-block" onclick="renderLevels()">▶ Play another</button>
       </div>
       <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="shareResult()">📤 Share result</button>
+      ${backendEnabled && authSession && !rs.duel ? `<button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="createChallenge()">🥊 Challenge a friend</button>` : ''}
     </div>
   `;
+  if(backendEnabled && authSession && !rs.duel) loadRoundLeaderboard(q.id, !!rs.isDaily);
+  if(rs.mode === 'challenge' && rs.challengeId){
+    submitChallengeResult(rs.challengeId, rs.foundCount, rs.startedAt);
+  }
+}
+
+/* Opt-in comparison against every other player who's ever completed this
+   round — daily or practice. Fetches only derived numbers (rank/percentile/
+   total) from the server, never other players' raw data, so this stays
+   privacy-safe. */
+async function loadRoundLeaderboard(questionId, isDaily){
+  const box = document.getElementById("roundLeaderboard");
+  if(!box) return;
+  try{
+    const stats = await apiFetch("/api/round-leaderboard?questionId=" + questionId, { method: "GET" });
+    if(!stats || stats.totalPlayers < 2){ return; } // not enough players yet for a meaningful comparison
+    box.innerHTML = `
+      <div class="fact-box" style="border-color:var(--accent);">
+        <b>📊 ${isDaily ? "Today's daily question" : "This round"}</b><br>
+        You beat <b style="color:#e2e8f0">${stats.beatPercent}%</b> of the ${stats.totalPlayers} players who've played it (rank #${stats.rank}).
+      </div>`;
+  } catch(e){ /* leaderboard is a nice-to-have; fail silently if unreachable */ }
 }
 
 async function syncRoundToServer(q, rs, completedAll, shieldUsed){
@@ -2037,6 +2330,641 @@ function shareResult(){
 }
 
 /* =========================================================
+   CHALLENGE A FRIEND (async, real backend required)
+   Play a round, generate a shareable link, a friend opens it
+   on their own device/time, plays the identical round, and
+   both sides see a head-to-head comparison. Unlike Duel Mode
+   this genuinely crosses devices/accounts — it needs the real
+   backend (a signed-in account on both ends) since there's no
+   other way to carry a result between two different browsers.
+   ========================================================= */
+async function createChallenge(){
+  const rs = roundState;
+  if(!rs || !backendEnabled || !authSession) return;
+  try{
+    const elapsedMs = Date.now() - rs.startedAt;
+    const { challengeId } = await apiFetch("/api/create-challenge", {
+      method: "POST",
+      body: JSON.stringify({ questionId: rs.question.id, foundCount: rs.foundCount, elapsedMs })
+    });
+    const url = window.location.origin + window.location.pathname + "?challenge=" + challengeId;
+    AudioFX.click();
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url)
+        .then(()=>showToast("🔗 Challenge link copied — send it to a friend!"))
+        .catch(()=>showToast("🔗 Challenge link: " + url));
+    } else {
+      showToast("🔗 Challenge link: " + url);
+    }
+  } catch(e){
+    showToast("⚠️ " + e.message);
+  }
+}
+async function submitChallengeResult(challengeId, foundCount, startedAt){
+  try{
+    const elapsedMs = Date.now() - startedAt;
+    const { challenge } = await apiFetch("/api/accept-challenge", {
+      method: "POST",
+      body: JSON.stringify({ challengeId, foundCount, elapsedMs })
+    });
+    renderChallengeResult(challenge);
+  } catch(e){
+    showToast("⚠️ Couldn't submit challenge result: " + e.message);
+  }
+}
+function renderChallengeResult(challenge){
+  const mine = { found: challenge.opponentFoundCount, elapsed: challenge.opponentElapsedMs };
+  const theirs = { found: challenge.creatorFoundCount, elapsed: challenge.creatorElapsedMs };
+  let winner = null;
+  if(mine.found !== theirs.found) winner = mine.found > theirs.found ? 'you' : 'them';
+  else if(mine.elapsed !== theirs.elapsed) winner = mine.elapsed < theirs.elapsed ? 'you' : 'them';
+  const fmtTime = ms => (ms/1000).toFixed(1) + "s";
+  main.innerHTML = `
+    <div class="card center">
+      <h2>🥊 Challenge Results</h2>
+      <div class="row" style="margin:16px 0;">
+        <div class="duel-card ${winner==='you'?'winner':''}">
+          <div>${winner==='you'?'🏆 ':''}You</div>
+          <div class="duel-score">${mine.found}/${challenge.total}</div>
+          <div style="color:var(--text-dim);font-size:12px;">⏱️ ${fmtTime(mine.elapsed)}</div>
+        </div>
+        <div class="duel-card ${winner==='them'?'winner':''}">
+          <div>${winner==='them'?'🏆 ':''}Them</div>
+          <div class="duel-score">${theirs.found}/${challenge.total}</div>
+          <div style="color:var(--text-dim);font-size:12px;">⏱️ ${fmtTime(theirs.elapsed)}</div>
+        </div>
+      </div>
+      ${winner ? '' : '<p class="sub">🤝 Perfect tie — even on speed!</p>'}
+      <button class="btn btn-primary btn-block" onclick="goHome()">🏠 Home</button>
+    </div>
+  `;
+}
+async function renderChallengeLanding(challengeId){
+  if(!backendEnabled){
+    main.innerHTML = `<div class="card center"><h2>🥊 Challenge links need the real backend</h2><p class="sub">This preview copy of the site isn't connected to an account system, so challenge links can't be compared across devices here.</p><button class="btn btn-outline btn-block" onclick="goHome()">🏠 Home</button></div>`;
+    return;
+  }
+  if(!authSession){
+    main.innerHTML = `
+      <div class="card center">
+        <h2>🥊 You've been challenged!</h2>
+        <p class="sub">Sign in to see the challenge and play — it only takes a magic link, no password.</p>
+        <input id="authEmail" type="email" placeholder="you@example.com" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border,#334155);background:var(--bg-soft);color:inherit;margin-bottom:10px;">
+        <button class="btn btn-primary btn-block" onclick="sendMagicLink(document.getElementById('authEmail').value.trim())">Send sign-in link</button>
+      </div>`;
+    return;
+  }
+  try{
+    const { challenge } = await apiFetch("/api/challenge?id=" + challengeId, { method: "GET" });
+    if(challenge.isCreator){
+      main.innerHTML = `<div class="card center"><h2>🥊 That's your own challenge!</h2><p class="sub">Send this link to a friend instead — you can't accept your own.</p><button class="btn btn-outline btn-block" onclick="goHome()">🏠 Home</button></div>`;
+      return;
+    }
+    if(challenge.alreadyAccepted){
+      main.innerHTML = `<div class="card center"><h2>🥊 Challenge already settled</h2><p class="sub">Someone already accepted this one — ask for a fresh link if you want a rematch.</p><button class="btn btn-outline btn-block" onclick="goHome()">🏠 Home</button></div>`;
+      return;
+    }
+    const q = challenge.question;
+    main.innerHTML = `
+      <div class="card center">
+        <h2>🥊 You've been challenged!</h2>
+        <span class="badge ${q.difficulty}">${LEVEL_ICON[q.difficulty]||''} ${q.difficulty}</span>
+        <p class="sub" style="margin-top:10px;">They found <b style="color:#e2e8f0">${challenge.creatorFoundCount}/${challenge.creatorTotal}</b> in ${(challenge.creatorElapsedMs/1000).toFixed(1)}s. Same round, same rules — think you can beat them?</p>
+        <button class="btn btn-primary btn-block" onclick="startRound(${q.id}, false, null, {mode:'challenge', challengeId:${challenge.id}})">▶ Accept &amp; Play</button>
+        <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="goHome()">Not now</button>
+      </div>`;
+  } catch(e){
+    main.innerHTML = `<div class="card center"><h2>🥊 Couldn't load that challenge</h2><p class="sub">${e.message}</p><button class="btn btn-outline btn-block" onclick="goHome()">🏠 Home</button></div>`;
+  }
+}
+
+/* =========================================================
+   GUESS THE COUNTRY (Wordle-style daily puzzle)
+   One free daily mystery country for everyone; Premium adds
+   unlimited practice puzzles on random countries (deliberately
+   NOT replays of the same daily country — same reasoning as
+   Blitz Mode replacing "beat your best" on already-memorized
+   content: once you know the answer, replaying it isn't a real
+   test). 6 guesses; after each one, reveal continent match,
+   bigger/smaller, more/fewer population, compass direction, and
+   a higher/lower comparison on a 5th stat that ROTATES day to
+   day between HDI and GDP per capita instead of always being HDI.
+
+   DATA NOTES: continent, capital, and capital coordinates are
+   stable facts. Population, area, HDI and GDP/capita are
+   best-effort approximations compiled for gameplay comparisons,
+   not citable figures — same caveat as the trivia question bank
+   (see README "Data notes"). Recommend a pre-launch spot-check
+   against a live source before this goes live for real money.
+   ========================================================= */
+const COUNTRIES = [
+  { name: "Algeria", continent: "Africa", capital: "Algiers", lat: 36.75, lon: 3.06, area: 2381741, population: 46700000, hdi: 0.745, gdpPerCapita: 5400 },
+  { name: "Angola", continent: "Africa", capital: "Luanda", lat: -8.84, lon: 13.23, area: 1246700, population: 36700000, hdi: 0.591, gdpPerCapita: 3100 },
+  { name: "Benin", continent: "Africa", capital: "Porto-Novo", lat: 6.5, lon: 2.6, area: 114763, population: 13700000, hdi: 0.508, gdpPerCapita: 1500 },
+  { name: "Botswana", continent: "Africa", capital: "Gaborone", lat: -24.65, lon: 25.91, area: 581730, population: 2700000, hdi: 0.708, gdpPerCapita: 7900 },
+  { name: "Burkina Faso", continent: "Africa", capital: "Ouagadougou", lat: 12.37, lon: -1.53, area: 272967, population: 23300000, hdi: 0.449, gdpPerCapita: 950 },
+  { name: "Burundi", continent: "Africa", capital: "Gitega", lat: -3.43, lon: 29.93, area: 27834, population: 13200000, hdi: 0.42, gdpPerCapita: 320 },
+  { name: "Cabo Verde", continent: "Africa", capital: "Praia", lat: 14.93, lon: -23.51, area: 4033, population: 600000, hdi: 0.661, gdpPerCapita: 4300 },
+  { name: "Cameroon", continent: "Africa", capital: "Yaoundé", lat: 3.87, lon: 11.52, area: 475442, population: 28600000, hdi: 0.588, gdpPerCapita: 1800 },
+  { name: "Central African Republic", continent: "Africa", capital: "Bangui", lat: 4.39, lon: 18.56, area: 622984, population: 5700000, hdi: 0.404, gdpPerCapita: 550 },
+  { name: "Chad", continent: "Africa", capital: "N'Djamena", lat: 12.13, lon: 15.06, area: 1284000, population: 18300000, hdi: 0.416, gdpPerCapita: 730 },
+  { name: "Comoros", continent: "Africa", capital: "Moroni", lat: -11.7, lon: 43.26, area: 1862, population: 850000, hdi: 0.618, gdpPerCapita: 1600 },
+  { name: "Congo (Republic)", continent: "Africa", capital: "Brazzaville", lat: -4.26, lon: 15.24, area: 342000, population: 6100000, hdi: 0.593, gdpPerCapita: 2400 },
+  { name: "DR Congo", continent: "Africa", capital: "Kinshasa", lat: -4.32, lon: 15.31, area: 2344858, population: 105000000, hdi: 0.481, gdpPerCapita: 700 },
+  { name: "Djibouti", continent: "Africa", capital: "Djibouti", lat: 11.59, lon: 43.15, area: 23200, population: 1100000, hdi: 0.523, gdpPerCapita: 3800 },
+  { name: "Egypt", continent: "Africa", capital: "Cairo", lat: 30.04, lon: 31.24, area: 1002450, population: 114000000, hdi: 0.728, gdpPerCapita: 4300 },
+  { name: "Equatorial Guinea", continent: "Africa", capital: "Malabo", lat: 3.75, lon: 8.78, area: 28051, population: 1700000, hdi: 0.618, gdpPerCapita: 8600 },
+  { name: "Eritrea", continent: "Africa", capital: "Asmara", lat: 15.34, lon: 38.93, area: 117600, population: 3700000, hdi: 0.492, gdpPerCapita: 700 },
+  { name: "Eswatini", continent: "Africa", capital: "Mbabane", lat: -26.32, lon: 31.14, area: 17364, population: 1200000, hdi: 0.611, gdpPerCapita: 4400 },
+  { name: "Ethiopia", continent: "Africa", capital: "Addis Ababa", lat: 9.03, lon: 38.74, area: 1104300, population: 128000000, hdi: 0.498, gdpPerCapita: 1400 },
+  { name: "Gabon", continent: "Africa", capital: "Libreville", lat: 0.42, lon: 9.45, area: 267668, population: 2400000, hdi: 0.706, gdpPerCapita: 8600 },
+  { name: "Gambia", continent: "Africa", capital: "Banjul", lat: 13.45, lon: -16.58, area: 11295, population: 2700000, hdi: 0.5, gdpPerCapita: 850 },
+  { name: "Ghana", continent: "Africa", capital: "Accra", lat: 5.6, lon: -0.19, area: 238533, population: 34000000, hdi: 0.602, gdpPerCapita: 2400 },
+  { name: "Guinea", continent: "Africa", capital: "Conakry", lat: 9.64, lon: -13.58, area: 245857, population: 14200000, hdi: 0.465, gdpPerCapita: 1400 },
+  { name: "Guinea-Bissau", continent: "Africa", capital: "Bissau", lat: 11.86, lon: -15.6, area: 36125, population: 2200000, hdi: 0.483, gdpPerCapita: 850 },
+  { name: "Ivory Coast", continent: "Africa", capital: "Yamoussoukro", lat: 6.82, lon: -5.28, area: 322463, population: 30000000, hdi: 0.568, gdpPerCapita: 2800 },
+  { name: "Kenya", continent: "Africa", capital: "Nairobi", lat: -1.29, lon: 36.82, area: 580367, population: 56400000, hdi: 0.601, gdpPerCapita: 2100 },
+  { name: "Lesotho", continent: "Africa", capital: "Maseru", lat: -29.31, lon: 27.48, area: 30355, population: 2300000, hdi: 0.514, gdpPerCapita: 1200 },
+  { name: "Liberia", continent: "Africa", capital: "Monrovia", lat: 6.3, lon: -10.8, area: 111369, population: 5400000, hdi: 0.487, gdpPerCapita: 830 },
+  { name: "Libya", continent: "Africa", capital: "Tripoli", lat: 32.89, lon: 13.19, area: 1759540, population: 7000000, hdi: 0.718, gdpPerCapita: 7700 },
+  { name: "Madagascar", continent: "Africa", capital: "Antananarivo", lat: -18.88, lon: 47.51, area: 587041, population: 30300000, hdi: 0.487, gdpPerCapita: 550 },
+  { name: "Malawi", continent: "Africa", capital: "Lilongwe", lat: -13.96, lon: 33.79, area: 118484, population: 21000000, hdi: 0.508, gdpPerCapita: 640 },
+  { name: "Mali", continent: "Africa", capital: "Bamako", lat: 12.65, lon: -8, area: 1240192, population: 23300000, hdi: 0.419, gdpPerCapita: 900 },
+  { name: "Mauritania", continent: "Africa", capital: "Nouakchott", lat: 18.08, lon: -15.98, area: 1030700, population: 4900000, hdi: 0.556, gdpPerCapita: 2400 },
+  { name: "Mauritius", continent: "Africa", capital: "Port Louis", lat: -20.16, lon: 57.5, area: 2040, population: 1300000, hdi: 0.802, gdpPerCapita: 11800 },
+  { name: "Morocco", continent: "Africa", capital: "Rabat", lat: 34.02, lon: -6.83, area: 446550, population: 37800000, hdi: 0.698, gdpPerCapita: 3800 },
+  { name: "Mozambique", continent: "Africa", capital: "Maputo", lat: -25.97, lon: 32.57, area: 801590, population: 33900000, hdi: 0.446, gdpPerCapita: 550 },
+  { name: "Namibia", continent: "Africa", capital: "Windhoek", lat: -22.56, lon: 17.08, area: 825615, population: 2600000, hdi: 0.62, gdpPerCapita: 5300 },
+  { name: "Niger", continent: "Africa", capital: "Niamey", lat: 13.51, lon: 2.11, area: 1267000, population: 27200000, hdi: 0.4, gdpPerCapita: 650 },
+  { name: "Nigeria", continent: "Africa", capital: "Abuja", lat: 9.08, lon: 7.4, area: 923768, population: 232000000, hdi: 0.548, gdpPerCapita: 1900 },
+  { name: "Rwanda", continent: "Africa", capital: "Kigali", lat: -1.94, lon: 30.06, area: 26338, population: 14100000, hdi: 0.548, gdpPerCapita: 1000 },
+  { name: "Sao Tome and Principe", continent: "Africa", capital: "São Tomé", lat: 0.34, lon: 6.73, area: 964, population: 230000, hdi: 0.626, gdpPerCapita: 2500 },
+  { name: "Senegal", continent: "Africa", capital: "Dakar", lat: 14.72, lon: -17.47, area: 196722, population: 18400000, hdi: 0.517, gdpPerCapita: 1700 },
+  { name: "Seychelles", continent: "Africa", capital: "Victoria", lat: -4.62, lon: 55.45, area: 459, population: 100000, hdi: 0.802, gdpPerCapita: 16000 },
+  { name: "Sierra Leone", continent: "Africa", capital: "Freetown", lat: 8.48, lon: -13.23, area: 71740, population: 8600000, hdi: 0.477, gdpPerCapita: 550 },
+  { name: "Somalia", continent: "Africa", capital: "Mogadishu", lat: 2.05, lon: 45.32, area: 637657, population: 18100000, hdi: 0.38, gdpPerCapita: 600 },
+  { name: "South Africa", continent: "Africa", capital: "Pretoria", lat: -25.75, lon: 28.19, area: 1221037, population: 63000000, hdi: 0.741, gdpPerCapita: 6700 },
+  { name: "South Sudan", continent: "Africa", capital: "Juba", lat: 4.85, lon: 31.58, area: 619745, population: 11400000, hdi: 0.381, gdpPerCapita: 450 },
+  { name: "Sudan", continent: "Africa", capital: "Khartoum", lat: 15.5, lon: 32.56, area: 1886068, population: 48100000, hdi: 0.508, gdpPerCapita: 750 },
+  { name: "Tanzania", continent: "Africa", capital: "Dodoma", lat: -6.16, lon: 35.75, area: 947303, population: 67400000, hdi: 0.549, gdpPerCapita: 1200 },
+  { name: "Togo", continent: "Africa", capital: "Lomé", lat: 6.13, lon: 1.22, area: 56785, population: 9000000, hdi: 0.571, gdpPerCapita: 1000 },
+  { name: "Tunisia", continent: "Africa", capital: "Tunis", lat: 36.81, lon: 10.18, area: 163610, population: 12300000, hdi: 0.732, gdpPerCapita: 3900 },
+  { name: "Uganda", continent: "Africa", capital: "Kampala", lat: 0.35, lon: 32.58, area: 241550, population: 48600000, hdi: 0.55, gdpPerCapita: 1000 },
+  { name: "Zambia", continent: "Africa", capital: "Lusaka", lat: -15.39, lon: 28.32, area: 752618, population: 20600000, hdi: 0.565, gdpPerCapita: 1500 },
+  { name: "Zimbabwe", continent: "Africa", capital: "Harare", lat: -17.83, lon: 31.05, area: 390757, population: 16700000, hdi: 0.573, gdpPerCapita: 2000 },
+  { name: "Afghanistan", continent: "Asia", capital: "Kabul", lat: 34.56, lon: 69.21, area: 652230, population: 42200000, hdi: 0.462, gdpPerCapita: 400 },
+  { name: "Armenia", continent: "Asia", capital: "Yerevan", lat: 40.18, lon: 44.51, area: 29743, population: 3000000, hdi: 0.786, gdpPerCapita: 8600 },
+  { name: "Azerbaijan", continent: "Asia", capital: "Baku", lat: 40.41, lon: 49.87, area: 86600, population: 10200000, hdi: 0.76, gdpPerCapita: 7800 },
+  { name: "Bahrain", continent: "Asia", capital: "Manama", lat: 26.23, lon: 50.59, area: 786, population: 1500000, hdi: 0.888, gdpPerCapita: 30800 },
+  { name: "Bangladesh", continent: "Asia", capital: "Dhaka", lat: 23.81, lon: 90.41, area: 148460, population: 173000000, hdi: 0.685, gdpPerCapita: 2700 },
+  { name: "Bhutan", continent: "Asia", capital: "Thimphu", lat: 27.47, lon: 89.64, area: 38394, population: 800000, hdi: 0.681, gdpPerCapita: 3600 },
+  { name: "Brunei", continent: "Asia", capital: "Bandar Seri Begawan", lat: 4.94, lon: 114.94, area: 5765, population: 460000, hdi: 0.829, gdpPerCapita: 35600 },
+  { name: "Cambodia", continent: "Asia", capital: "Phnom Penh", lat: 11.56, lon: 104.92, area: 181035, population: 17400000, hdi: 0.606, gdpPerCapita: 1800 },
+  { name: "China", continent: "Asia", capital: "Beijing", lat: 39.9, lon: 116.41, area: 9596960, population: 1410000000, hdi: 0.797, gdpPerCapita: 13100 },
+  { name: "Cyprus", continent: "Asia", capital: "Nicosia", lat: 35.19, lon: 33.38, area: 9251, population: 1300000, hdi: 0.907, gdpPerCapita: 32000 },
+  { name: "Georgia", continent: "Asia", capital: "Tbilisi", lat: 41.72, lon: 44.79, area: 69700, population: 3700000, hdi: 0.814, gdpPerCapita: 8100 },
+  { name: "India", continent: "Asia", capital: "New Delhi", lat: 28.61, lon: 77.21, area: 3287263, population: 1440000000, hdi: 0.644, gdpPerCapita: 2600 },
+  { name: "Indonesia", continent: "Asia", capital: "Jakarta", lat: -6.21, lon: 106.85, area: 1904569, population: 279000000, hdi: 0.713, gdpPerCapita: 5100 },
+  { name: "Iran", continent: "Asia", capital: "Tehran", lat: 35.69, lon: 51.39, area: 1648195, population: 89000000, hdi: 0.78, gdpPerCapita: 5300 },
+  { name: "Iraq", continent: "Asia", capital: "Baghdad", lat: 33.31, lon: 44.36, area: 438317, population: 44500000, hdi: 0.686, gdpPerCapita: 5900 },
+  { name: "Israel", continent: "Asia", capital: "Jerusalem", lat: 31.77, lon: 35.21, area: 20770, population: 9800000, hdi: 0.919, gdpPerCapita: 55000 },
+  { name: "Japan", continent: "Asia", capital: "Tokyo", lat: 35.68, lon: 139.65, area: 377975, population: 123500000, hdi: 0.925, gdpPerCapita: 33800 },
+  { name: "Jordan", continent: "Asia", capital: "Amman", lat: 31.95, lon: 35.93, area: 89342, population: 11300000, hdi: 0.736, gdpPerCapita: 4700 },
+  { name: "Kazakhstan", continent: "Asia", capital: "Astana", lat: 51.18, lon: 71.45, area: 2724900, population: 20200000, hdi: 0.811, gdpPerCapita: 13000 },
+  { name: "Kuwait", continent: "Asia", capital: "Kuwait City", lat: 29.38, lon: 47.98, area: 17818, population: 4300000, hdi: 0.847, gdpPerCapita: 33900 },
+  { name: "Kyrgyzstan", continent: "Asia", capital: "Bishkek", lat: 42.87, lon: 74.59, area: 199951, population: 7000000, hdi: 0.701, gdpPerCapita: 1900 },
+  { name: "Laos", continent: "Asia", capital: "Vientiane", lat: 17.97, lon: 102.6, area: 236800, population: 7700000, hdi: 0.607, gdpPerCapita: 2000 },
+  { name: "Lebanon", continent: "Asia", capital: "Beirut", lat: 33.89, lon: 35.5, area: 10452, population: 5400000, hdi: 0.706, gdpPerCapita: 4100 },
+  { name: "Malaysia", continent: "Asia", capital: "Kuala Lumpur", lat: 3.14, lon: 101.69, area: 330803, population: 34300000, hdi: 0.807, gdpPerCapita: 12500 },
+  { name: "Maldives", continent: "Asia", capital: "Malé", lat: 4.18, lon: 73.51, area: 298, population: 520000, hdi: 0.747, gdpPerCapita: 12000 },
+  { name: "Mongolia", continent: "Asia", capital: "Ulaanbaatar", lat: 47.89, lon: 106.91, area: 1564110, population: 3400000, hdi: 0.747, gdpPerCapita: 5700 },
+  { name: "Myanmar", continent: "Asia", capital: "Naypyidaw", lat: 19.75, lon: 96.13, area: 676578, population: 54800000, hdi: 0.585, gdpPerCapita: 1200 },
+  { name: "Nepal", continent: "Asia", capital: "Kathmandu", lat: 27.72, lon: 85.32, area: 147181, population: 30700000, hdi: 0.601, gdpPerCapita: 1400 },
+  { name: "North Korea", continent: "Asia", capital: "Pyongyang", lat: 39.02, lon: 125.75, area: 120538, population: 26200000, hdi: 0.6, gdpPerCapita: 700 },
+  { name: "Oman", continent: "Asia", capital: "Muscat", lat: 23.61, lon: 58.59, area: 309500, population: 4700000, hdi: 0.816, gdpPerCapita: 21500 },
+  { name: "Pakistan", continent: "Asia", capital: "Islamabad", lat: 33.68, lon: 73.05, area: 881913, population: 241000000, hdi: 0.54, gdpPerCapita: 1600 },
+  { name: "Palestine", continent: "Asia", capital: "Ramallah", lat: 31.9, lon: 35.2, area: 6020, population: 5400000, hdi: 0.716, gdpPerCapita: 3800 },
+  { name: "Philippines", continent: "Asia", capital: "Manila", lat: 14.6, lon: 120.98, area: 300000, population: 117000000, hdi: 0.71, gdpPerCapita: 3900 },
+  { name: "Qatar", continent: "Asia", capital: "Doha", lat: 25.29, lon: 51.53, area: 11586, population: 2700000, hdi: 0.875, gdpPerCapita: 83500 },
+  { name: "Saudi Arabia", continent: "Asia", capital: "Riyadh", lat: 24.71, lon: 46.68, area: 2149690, population: 36900000, hdi: 0.875, gdpPerCapita: 28000 },
+  { name: "Singapore", continent: "Asia", capital: "Singapore", lat: 1.35, lon: 103.82, area: 728, population: 5900000, hdi: 0.946, gdpPerCapita: 88000 },
+  { name: "South Korea", continent: "Asia", capital: "Seoul", lat: 37.57, lon: 126.98, area: 100210, population: 51700000, hdi: 0.937, gdpPerCapita: 34500 },
+  { name: "Sri Lanka", continent: "Asia", capital: "Sri Jayawardenepura Kotte", lat: 6.9, lon: 79.92, area: 65610, population: 22000000, hdi: 0.78, gdpPerCapita: 4200 },
+  { name: "Syria", continent: "Asia", capital: "Damascus", lat: 33.51, lon: 36.28, area: 185180, population: 23200000, hdi: 0.577, gdpPerCapita: 900 },
+  { name: "Taiwan", continent: "Asia", capital: "Taipei", lat: 25.03, lon: 121.57, area: 36197, population: 23600000, hdi: 0.92, gdpPerCapita: 34000 },
+  { name: "Tajikistan", continent: "Asia", capital: "Dushanbe", lat: 38.56, lon: 68.79, area: 143100, population: 10400000, hdi: 0.685, gdpPerCapita: 1200 },
+  { name: "Thailand", continent: "Asia", capital: "Bangkok", lat: 13.76, lon: 100.5, area: 513120, population: 71800000, hdi: 0.803, gdpPerCapita: 7300 },
+  { name: "Timor-Leste", continent: "Asia", capital: "Dili", lat: -8.56, lon: 125.57, area: 14874, population: 1400000, hdi: 0.585, gdpPerCapita: 2000 },
+  { name: "Turkey", continent: "Asia", capital: "Ankara", lat: 39.93, lon: 32.86, area: 783562, population: 86000000, hdi: 0.855, gdpPerCapita: 12500 },
+  { name: "Turkmenistan", continent: "Asia", capital: "Ashgabat", lat: 37.95, lon: 58.38, area: 488100, population: 6400000, hdi: 0.744, gdpPerCapita: 9200 },
+  { name: "United Arab Emirates", continent: "Asia", capital: "Abu Dhabi", lat: 24.47, lon: 54.37, area: 83600, population: 10200000, hdi: 0.94, gdpPerCapita: 53700 },
+  { name: "Uzbekistan", continent: "Asia", capital: "Tashkent", lat: 41.3, lon: 69.24, area: 447400, population: 36400000, hdi: 0.74, gdpPerCapita: 2600 },
+  { name: "Vietnam", continent: "Asia", capital: "Hanoi", lat: 21.03, lon: 105.85, area: 331212, population: 100300000, hdi: 0.726, gdpPerCapita: 4600 },
+  { name: "Yemen", continent: "Asia", capital: "Sana'a", lat: 15.35, lon: 44.21, area: 527968, population: 34400000, hdi: 0.424, gdpPerCapita: 650 },
+  { name: "Albania", continent: "Europe", capital: "Tirana", lat: 41.33, lon: 19.82, area: 28748, population: 2800000, hdi: 0.796, gdpPerCapita: 7900 },
+  { name: "Andorra", continent: "Europe", capital: "Andorra la Vella", lat: 42.51, lon: 1.52, area: 468, population: 80000, hdi: 0.884, gdpPerCapita: 46000 },
+  { name: "Austria", continent: "Europe", capital: "Vienna", lat: 48.21, lon: 16.37, area: 83879, population: 9100000, hdi: 0.926, gdpPerCapita: 53000 },
+  { name: "Belarus", continent: "Europe", capital: "Minsk", lat: 53.9, lon: 27.57, area: 207600, population: 9200000, hdi: 0.821, gdpPerCapita: 8000 },
+  { name: "Belgium", continent: "Europe", capital: "Brussels", lat: 50.85, lon: 4.35, area: 30528, population: 11700000, hdi: 0.942, gdpPerCapita: 53000 },
+  { name: "Bosnia and Herzegovina", continent: "Europe", capital: "Sarajevo", lat: 43.86, lon: 18.41, area: 51197, population: 3200000, hdi: 0.804, gdpPerCapita: 8300 },
+  { name: "Bulgaria", continent: "Europe", capital: "Sofia", lat: 42.7, lon: 23.32, area: 110879, population: 6800000, hdi: 0.845, gdpPerCapita: 14300 },
+  { name: "Croatia", continent: "Europe", capital: "Zagreb", lat: 45.81, lon: 15.98, area: 56594, population: 3900000, hdi: 0.878, gdpPerCapita: 20000 },
+  { name: "Czech Republic", continent: "Europe", capital: "Prague", lat: 50.08, lon: 14.44, area: 78871, population: 10900000, hdi: 0.915, gdpPerCapita: 30000 },
+  { name: "Denmark", continent: "Europe", capital: "Copenhagen", lat: 55.68, lon: 12.57, area: 42933, population: 5950000, hdi: 0.952, gdpPerCapita: 68000 },
+  { name: "Estonia", continent: "Europe", capital: "Tallinn", lat: 59.44, lon: 24.75, area: 45227, population: 1400000, hdi: 0.899, gdpPerCapita: 30000 },
+  { name: "Finland", continent: "Europe", capital: "Helsinki", lat: 60.17, lon: 24.94, area: 338424, population: 5600000, hdi: 0.942, gdpPerCapita: 53000 },
+  { name: "France", continent: "Europe", capital: "Paris", lat: 48.86, lon: 2.35, area: 551695, population: 68400000, hdi: 0.91, gdpPerCapita: 44000 },
+  { name: "Germany", continent: "Europe", capital: "Berlin", lat: 52.52, lon: 13.4, area: 357114, population: 84500000, hdi: 0.95, gdpPerCapita: 51000 },
+  { name: "Greece", continent: "Europe", capital: "Athens", lat: 37.98, lon: 23.73, area: 131957, population: 10400000, hdi: 0.893, gdpPerCapita: 22000 },
+  { name: "Hungary", continent: "Europe", capital: "Budapest", lat: 47.5, lon: 19.04, area: 93028, population: 9600000, hdi: 0.851, gdpPerCapita: 19000 },
+  { name: "Iceland", continent: "Europe", capital: "Reykjavik", lat: 64.13, lon: -21.9, area: 103000, population: 400000, hdi: 0.972, gdpPerCapita: 75000 },
+  { name: "Ireland", continent: "Europe", capital: "Dublin", lat: 53.35, lon: -6.26, area: 70273, population: 5200000, hdi: 0.95, gdpPerCapita: 103000 },
+  { name: "Italy", continent: "Europe", capital: "Rome", lat: 41.9, lon: 12.5, area: 301340, population: 58900000, hdi: 0.906, gdpPerCapita: 38000 },
+  { name: "Kosovo", continent: "Europe", capital: "Pristina", lat: 42.66, lon: 21.17, area: 10887, population: 1800000, hdi: 0.775, gdpPerCapita: 6500 },
+  { name: "Latvia", continent: "Europe", capital: "Riga", lat: 56.95, lon: 24.11, area: 64559, population: 1800000, hdi: 0.879, gdpPerCapita: 24000 },
+  { name: "Liechtenstein", continent: "Europe", capital: "Vaduz", lat: 47.14, lon: 9.52, area: 160, population: 40000, hdi: 0.942, gdpPerCapita: 180000 },
+  { name: "Lithuania", continent: "Europe", capital: "Vilnius", lat: 54.69, lon: 25.28, area: 65300, population: 2900000, hdi: 0.895, gdpPerCapita: 27000 },
+  { name: "Luxembourg", continent: "Europe", capital: "Luxembourg", lat: 49.61, lon: 6.13, area: 2586, population: 660000, hdi: 0.93, gdpPerCapita: 130000 },
+  { name: "Malta", continent: "Europe", capital: "Valletta", lat: 35.9, lon: 14.51, area: 316, population: 550000, hdi: 0.924, gdpPerCapita: 35000 },
+  { name: "Moldova", continent: "Europe", capital: "Chisinau", lat: 47.01, lon: 28.86, area: 33846, population: 2500000, hdi: 0.767, gdpPerCapita: 6900 },
+  { name: "Monaco", continent: "Europe", capital: "Monaco", lat: 43.73, lon: 7.42, area: 2.02, population: 39000, hdi: 0.96, gdpPerCapita: 240000 },
+  { name: "Montenegro", continent: "Europe", capital: "Podgorica", lat: 42.44, lon: 19.26, area: 13812, population: 620000, hdi: 0.844, gdpPerCapita: 11000 },
+  { name: "Netherlands", continent: "Europe", capital: "Amsterdam", lat: 52.37, lon: 4.89, area: 41850, population: 17900000, hdi: 0.946, gdpPerCapita: 63000 },
+  { name: "North Macedonia", continent: "Europe", capital: "Skopje", lat: 42, lon: 21.43, area: 25713, population: 1800000, hdi: 0.795, gdpPerCapita: 7300 },
+  { name: "Norway", continent: "Europe", capital: "Oslo", lat: 59.91, lon: 10.75, area: 385207, population: 5500000, hdi: 0.97, gdpPerCapita: 95000 },
+  { name: "Poland", continent: "Europe", capital: "Warsaw", lat: 52.23, lon: 21.01, area: 312696, population: 37600000, hdi: 0.881, gdpPerCapita: 22000 },
+  { name: "Portugal", continent: "Europe", capital: "Lisbon", lat: 38.72, lon: -9.14, area: 92090, population: 10500000, hdi: 0.874, gdpPerCapita: 27000 },
+  { name: "Romania", continent: "Europe", capital: "Bucharest", lat: 44.43, lon: 26.1, area: 238397, population: 19000000, hdi: 0.837, gdpPerCapita: 18000 },
+  { name: "Russia", continent: "Europe", capital: "Moscow", lat: 55.75, lon: 37.62, area: 17098242, population: 144000000, hdi: 0.821, gdpPerCapita: 14400 },
+  { name: "San Marino", continent: "Europe", capital: "San Marino", lat: 43.94, lon: 12.45, area: 61, population: 34000, hdi: 0.85, gdpPerCapita: 52000 },
+  { name: "Serbia", continent: "Europe", capital: "Belgrade", lat: 44.79, lon: 20.45, area: 88361, population: 6600000, hdi: 0.814, gdpPerCapita: 11500 },
+  { name: "Slovakia", continent: "Europe", capital: "Bratislava", lat: 48.15, lon: 17.11, area: 49035, population: 5450000, hdi: 0.9, gdpPerCapita: 24000 },
+  { name: "Slovenia", continent: "Europe", capital: "Ljubljana", lat: 46.06, lon: 14.51, area: 20273, population: 2100000, hdi: 0.926, gdpPerCapita: 32000 },
+  { name: "Spain", continent: "Europe", capital: "Madrid", lat: 40.42, lon: -3.7, area: 505990, population: 48600000, hdi: 0.911, gdpPerCapita: 33000 },
+  { name: "Sweden", continent: "Europe", capital: "Stockholm", lat: 59.33, lon: 18.07, area: 450295, population: 10600000, hdi: 0.952, gdpPerCapita: 57000 },
+  { name: "Switzerland", continent: "Europe", capital: "Bern", lat: 46.95, lon: 7.45, area: 41285, population: 8900000, hdi: 0.97, gdpPerCapita: 100000 },
+  { name: "Ukraine", continent: "Europe", capital: "Kyiv", lat: 50.45, lon: 30.52, area: 603500, population: 36700000, hdi: 0.734, gdpPerCapita: 5700 },
+  { name: "United Kingdom", continent: "Europe", capital: "London", lat: 51.51, lon: -0.13, area: 243610, population: 68700000, hdi: 0.94, gdpPerCapita: 49000 },
+  { name: "Vatican City", continent: "Europe", capital: "Vatican City", lat: 41.9, lon: 12.45, area: 0.49, population: 800, hdi: 0.96, gdpPerCapita: 21000 },
+  { name: "Antigua and Barbuda", continent: "North America", capital: "Saint John's", lat: 17.13, lon: -61.85, area: 442, population: 100000, hdi: 0.816, gdpPerCapita: 20000 },
+  { name: "Bahamas", continent: "North America", capital: "Nassau", lat: 25.06, lon: -77.35, area: 13943, population: 410000, hdi: 0.82, gdpPerCapita: 35000 },
+  { name: "Barbados", continent: "North America", capital: "Bridgetown", lat: 13.1, lon: -59.62, area: 430, population: 280000, hdi: 0.809, gdpPerCapita: 19000 },
+  { name: "Belize", continent: "North America", capital: "Belmopan", lat: 17.25, lon: -88.77, area: 22966, population: 410000, hdi: 0.7, gdpPerCapita: 6800 },
+  { name: "Canada", continent: "North America", capital: "Ottawa", lat: 45.42, lon: -75.7, area: 9984670, population: 40100000, hdi: 0.939, gdpPerCapita: 53000 },
+  { name: "Costa Rica", continent: "North America", capital: "San José", lat: 9.93, lon: -84.08, area: 51100, population: 5200000, hdi: 0.806, gdpPerCapita: 14500 },
+  { name: "Cuba", continent: "North America", capital: "Havana", lat: 23.13, lon: -82.38, area: 109884, population: 11000000, hdi: 0.764, gdpPerCapita: 9500 },
+  { name: "Dominica", continent: "North America", capital: "Roseau", lat: 15.3, lon: -61.39, area: 751, population: 73000, hdi: 0.744, gdpPerCapita: 9000 },
+  { name: "Dominican Republic", continent: "North America", capital: "Santo Domingo", lat: 18.49, lon: -69.93, area: 48671, population: 11300000, hdi: 0.769, gdpPerCapita: 10500 },
+  { name: "El Salvador", continent: "North America", capital: "San Salvador", lat: 13.69, lon: -89.22, area: 21041, population: 6300000, hdi: 0.674, gdpPerCapita: 5000 },
+  { name: "Grenada", continent: "North America", capital: "St. George's", lat: 12.05, lon: -61.75, area: 344, population: 125000, hdi: 0.802, gdpPerCapita: 10600 },
+  { name: "Guatemala", continent: "North America", capital: "Guatemala City", lat: 14.63, lon: -90.51, area: 108889, population: 18100000, hdi: 0.663, gdpPerCapita: 5600 },
+  { name: "Haiti", continent: "North America", capital: "Port-au-Prince", lat: 18.59, lon: -72.31, area: 27750, population: 11700000, hdi: 0.552, gdpPerCapita: 1700 },
+  { name: "Honduras", continent: "North America", capital: "Tegucigalpa", lat: 14.07, lon: -87.19, area: 112492, population: 10600000, hdi: 0.632, gdpPerCapita: 3200 },
+  { name: "Jamaica", continent: "North America", capital: "Kingston", lat: 18.02, lon: -76.8, area: 10991, population: 2800000, hdi: 0.706, gdpPerCapita: 6300 },
+  { name: "Mexico", continent: "North America", capital: "Mexico City", lat: 19.43, lon: -99.13, area: 1964375, population: 130000000, hdi: 0.789, gdpPerCapita: 12700 },
+  { name: "Nicaragua", continent: "North America", capital: "Managua", lat: 12.11, lon: -86.24, area: 130373, population: 6900000, hdi: 0.667, gdpPerCapita: 2600 },
+  { name: "Panama", continent: "North America", capital: "Panama City", lat: 8.99, lon: -79.52, area: 75417, population: 4500000, hdi: 0.829, gdpPerCapita: 17500 },
+  { name: "Saint Kitts and Nevis", continent: "North America", capital: "Basseterre", lat: 17.3, lon: -62.72, area: 261, population: 48000, hdi: 0.874, gdpPerCapita: 21000 },
+  { name: "Saint Lucia", continent: "North America", capital: "Castries", lat: 14.01, lon: -60.99, area: 616, population: 180000, hdi: 0.729, gdpPerCapita: 12000 },
+  { name: "Saint Vincent and the Grenadines", continent: "North America", capital: "Kingstown", lat: 13.16, lon: -61.22, area: 389, population: 100000, hdi: 0.771, gdpPerCapita: 9600 },
+  { name: "Trinidad and Tobago", continent: "North America", capital: "Port of Spain", lat: 10.65, lon: -61.52, area: 5130, population: 1500000, hdi: 0.807, gdpPerCapita: 18000 },
+  { name: "United States", continent: "North America", capital: "Washington, D.C.", lat: 38.9, lon: -77.04, area: 9833517, population: 341000000, hdi: 0.938, gdpPerCapita: 82000 },
+  { name: "Argentina", continent: "South America", capital: "Buenos Aires", lat: -34.6, lon: -58.38, area: 2780400, population: 46200000, hdi: 0.849, gdpPerCapita: 13700 },
+  { name: "Bolivia", continent: "South America", capital: "Sucre", lat: -19.03, lon: -65.26, area: 1098581, population: 12200000, hdi: 0.698, gdpPerCapita: 3700 },
+  { name: "Brazil", continent: "South America", capital: "Brasília", lat: -15.79, lon: -47.88, area: 8515767, population: 217000000, hdi: 0.76, gdpPerCapita: 10400 },
+  { name: "Chile", continent: "South America", capital: "Santiago", lat: -33.45, lon: -70.65, area: 756102, population: 19600000, hdi: 0.86, gdpPerCapita: 17000 },
+  { name: "Colombia", continent: "South America", capital: "Bogotá", lat: 4.71, lon: -74.07, area: 1141748, population: 52200000, hdi: 0.758, gdpPerCapita: 7000 },
+  { name: "Ecuador", continent: "South America", capital: "Quito", lat: -0.18, lon: -78.47, area: 283561, population: 18300000, hdi: 0.744, gdpPerCapita: 6500 },
+  { name: "Guyana", continent: "South America", capital: "Georgetown", lat: 6.8, lon: -58.16, area: 214969, population: 830000, hdi: 0.792, gdpPerCapita: 24000 },
+  { name: "Paraguay", continent: "South America", capital: "Asunción", lat: -25.3, lon: -57.64, area: 406752, population: 6900000, hdi: 0.717, gdpPerCapita: 6600 },
+  { name: "Peru", continent: "South America", capital: "Lima", lat: -12.05, lon: -77.04, area: 1285216, population: 34400000, hdi: 0.794, gdpPerCapita: 7600 },
+  { name: "Suriname", continent: "South America", capital: "Paramaribo", lat: 5.87, lon: -55.17, area: 163820, population: 620000, hdi: 0.735, gdpPerCapita: 6900 },
+  { name: "Uruguay", continent: "South America", capital: "Montevideo", lat: -34.9, lon: -56.16, area: 176215, population: 3500000, hdi: 0.83, gdpPerCapita: 22000 },
+  { name: "Venezuela", continent: "South America", capital: "Caracas", lat: 10.49, lon: -66.88, area: 916445, population: 28800000, hdi: 0.699, gdpPerCapita: 4600 },
+  { name: "Australia", continent: "Oceania", capital: "Canberra", lat: -35.28, lon: 149.13, area: 7692024, population: 27200000, hdi: 0.958, gdpPerCapita: 65000 },
+  { name: "Fiji", continent: "Oceania", capital: "Suva", lat: -18.14, lon: 178.44, area: 18274, population: 930000, hdi: 0.73, gdpPerCapita: 6900 },
+  { name: "Kiribati", continent: "Oceania", capital: "Tarawa", lat: 1.33, lon: 172.98, area: 811, population: 130000, hdi: 0.647, gdpPerCapita: 1900 },
+  { name: "Marshall Islands", continent: "Oceania", capital: "Majuro", lat: 7.1, lon: 171.38, area: 181, population: 42000, hdi: 0.638, gdpPerCapita: 7300 },
+  { name: "Micronesia", continent: "Oceania", capital: "Palikir", lat: 6.92, lon: 158.16, area: 702, population: 113000, hdi: 0.63, gdpPerCapita: 3900 },
+  { name: "Nauru", continent: "Oceania", capital: "Yaren", lat: -0.55, lon: 166.92, area: 21, population: 12000, hdi: 0.703, gdpPerCapita: 11000 },
+  { name: "New Zealand", continent: "Oceania", capital: "Wellington", lat: -41.29, lon: 174.78, area: 268838, population: 5200000, hdi: 0.938, gdpPerCapita: 48000 },
+  { name: "Palau", continent: "Oceania", capital: "Ngerulmud", lat: 7.5, lon: 134.62, area: 459, population: 18000, hdi: 0.767, gdpPerCapita: 14000 },
+  { name: "Papua New Guinea", continent: "Oceania", capital: "Port Moresby", lat: -9.48, lon: 147.15, area: 462840, population: 10700000, hdi: 0.569, gdpPerCapita: 3000 },
+  { name: "Samoa", continent: "Oceania", capital: "Apia", lat: -13.83, lon: -171.76, area: 2842, population: 220000, hdi: 0.713, gdpPerCapita: 4300 },
+  { name: "Solomon Islands", continent: "Oceania", capital: "Honiara", lat: -9.43, lon: 159.95, area: 28896, population: 740000, hdi: 0.567, gdpPerCapita: 2400 },
+  { name: "Tonga", continent: "Oceania", capital: "Nuku'alofa", lat: -21.14, lon: -175.2, area: 747, population: 107000, hdi: 0.736, gdpPerCapita: 5200 },
+  { name: "Tuvalu", continent: "Oceania", capital: "Funafuti", lat: -8.52, lon: 179.2, area: 26, population: 11000, hdi: 0.646, gdpPerCapita: 5700 },
+  { name: "Vanuatu", continent: "Oceania", capital: "Port Vila", lat: -17.73, lon: 168.32, area: 12189, population: 320000, hdi: 0.616, gdpPerCapita: 3300 },
+];
+COUNTRIES.forEach((c, i) => { c.id = i + 1; });
+
+const COUNTRY_ALIASES = {
+  "usa": "United States", "us": "United States", "u.s.": "United States",
+  "united states of america": "United States", "america": "United States",
+  "uk": "United Kingdom", "great britain": "United Kingdom", "britain": "United Kingdom",
+  "uae": "United Arab Emirates", "emirates": "United Arab Emirates",
+  "drc": "DR Congo", "democratic republic of congo": "DR Congo",
+  "democratic republic of the congo": "DR Congo", "congo-kinshasa": "DR Congo",
+  "republic of congo": "Congo (Republic)", "congo-brazzaville": "Congo (Republic)",
+  "cote d'ivoire": "Ivory Coast", "côte d'ivoire": "Ivory Coast",
+  "czechia": "Czech Republic",
+  "swaziland": "Eswatini",
+  "burma": "Myanmar",
+  "cape verde": "Cabo Verde",
+  "east timor": "Timor-Leste",
+  "holy see": "Vatican City", "vatican": "Vatican City",
+  "federated states of micronesia": "Micronesia",
+  "macedonia": "North Macedonia",
+  "russian federation": "Russia",
+  "lao pdr": "Laos", "laos pdr": "Laos",
+  "republic of ireland": "Ireland",
+  "south korea republic": "South Korea", "korea south": "South Korea",
+  "north korea dprk": "North Korea", "korea north": "North Korea",
+  "palestinian territories": "Palestine", "state of palestine": "Palestine"
+};
+function resolveCountryGuess(input){
+  const raw = String(input || "").trim();
+  if(!raw) return null;
+  const norm = normalize(raw);
+  const direct = COUNTRIES.find(c => normalize(c.name) === norm);
+  if(direct) return direct;
+  const aliasTarget = COUNTRY_ALIASES[raw.toLowerCase().trim()];
+  if(aliasTarget) return COUNTRIES.find(c => c.name === aliasTarget) || null;
+  return null;
+}
+function countryDayIndex(){
+  const d = new Date();
+  const utcMidnight = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return Math.floor(utcMidnight / 86400000);
+}
+function getDailyCountry(){
+  return COUNTRIES[countryDayIndex() % COUNTRIES.length];
+}
+const ROTATING_STATS = [
+  { key: "hdi", label: "HDI" },
+  { key: "gdpPerCapita", label: "GDP/capita" }
+];
+function rotatingStatForToday(){
+  return ROTATING_STATS[countryDayIndex() % ROTATING_STATS.length];
+}
+function bearingDirection(lat1, lon1, lat2, lon2){
+  const toRad = d => d * Math.PI / 180;
+  const phi1 = toRad(lat1), phi2 = toRad(lat2), dLon = toRad(lon2 - lon1);
+  const y = Math.sin(dLon) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLon);
+  const brng = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  const dirs = ["N","NE","E","SE","S","SW","W","NW"];
+  return dirs[Math.round(brng / 45) % 8];
+}
+const DIR_ARROWS = { N:"⬆️", NE:"↗️", E:"➡️", SE:"↘️", S:"⬇️", SW:"↙️", W:"⬅️", NW:"↖️" };
+
+function computeCountryGuessResult(guess, answer, stat){
+  const correct = guess.id === answer.id;
+  return {
+    name: guess.name,
+    correct,
+    continentMatch: guess.continent === answer.continent,
+    size: correct ? "equal" : (guess.area < answer.area ? "bigger" : "smaller"),
+    population: correct ? "equal" : (guess.population < answer.population ? "more" : "fewer"),
+    direction: correct ? null : bearingDirection(guess.lat, guess.lon, answer.lat, answer.lon),
+    statHigher: correct ? "equal" : (guess[stat.key] < answer[stat.key] ? "higher" : "lower")
+  };
+}
+
+let countryGameState = null;
+
+function renderCountryGame(){
+  setActiveNav("guessgame");
+  const stat = rotatingStatForToday();
+  const todayIdx = countryDayIndex();
+  const persisted = state.countryGame;
+  const playedToday = !!(persisted && persisted.dayIndex === todayIdx);
+
+  if(playedToday && (persisted.solved || persisted.failed)){
+    renderCountryResult({
+      guesses: persisted.guesses,
+      answer: getDailyCountry(),
+      solved: persisted.solved,
+      isDaily: true,
+      stat
+    });
+    return;
+  }
+
+  main.innerHTML = `
+    <div class="card center">
+      <h2>🌎 Guess the Country</h2>
+      <p class="sub">A new mystery country every day. 6 guesses — after each one you'll learn whether you're on the right continent, whether the real country is bigger/smaller and more/less populous, which direction to head, and how it compares on ${stat.label}.</p>
+      <button class="btn btn-primary btn-block" onclick="startCountryGame(true)">${playedToday ? "▶ Continue today's puzzle" : "▶ Play today's puzzle"}</button>
+      ${state.premium
+        ? `<button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="startCountryGame(false)">🧪 Practice (random country)</button>`
+        : `<p class="sub" style="margin-top:10px;">🔒 Unlimited practice puzzles (random countries, doesn't touch today's daily) are a Premium perk. <a href="javascript:void(0)" onclick="renderPremium()" style="color:var(--accent);">See plans →</a></p>`}
+      ${state.countryPracticeSolved ? `<p class="sub" style="margin-top:8px;font-size:12px;">🧪 Practice puzzles solved: ${state.countryPracticeSolved}</p>` : ''}
+    </div>
+    <button class="btn btn-outline btn-block" onclick="goHome()">← Back home</button>
+  `;
+}
+
+function startCountryGame(isDaily){
+  const todayIdx = countryDayIndex();
+  if(isDaily){
+    const persisted = state.countryGame;
+    if(persisted && persisted.dayIndex === todayIdx && (persisted.solved || persisted.failed)){
+      renderCountryGame();
+      return;
+    }
+    const resumedGuesses = (persisted && persisted.dayIndex === todayIdx) ? persisted.guesses : [];
+    countryGameState = {
+      answer: getDailyCountry(), guesses: resumedGuesses, isDaily: true,
+      dayIndex: todayIdx, stat: rotatingStatForToday(), solved: false, failed: false
+    };
+  } else {
+    if(!state.premium){ renderPremium(); return; }
+    const dailyIdx = todayIdx % COUNTRIES.length;
+    let idx = dailyIdx;
+    if(COUNTRIES.length > 1){
+      while(idx === dailyIdx) idx = Math.floor(Math.random() * COUNTRIES.length);
+    }
+    countryGameState = {
+      answer: COUNTRIES[idx], guesses: [], isDaily: false,
+      dayIndex: todayIdx, stat: rotatingStatForToday(), solved: false, failed: false
+    };
+  }
+  AudioFX.click();
+  renderCountryRound();
+}
+
+function renderCountryRound(){
+  const cs = countryGameState;
+  if(!cs){ renderCountryGame(); return; }
+  const dotsHtml = Array.from({length:6}).map((_,i)=>`<span class="cg-dot ${i < cs.guesses.length ? 'used' : ''}"></span>`).join("");
+  const guessesHtml = cs.guesses.map(g => renderCountryGuessRow(g, cs.stat)).join("");
+  main.innerHTML = `
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <span class="badge ${cs.isDaily ? 'expert' : 'medium'}">${cs.isDaily ? '🌎 Daily puzzle' : '🧪 Practice'}</span>
+        <span style="color:var(--text-dim);font-size:12px;">${cs.guesses.length}/6 guesses</span>
+      </div>
+      <div class="cg-dots">${dotsHtml}</div>
+      <div id="cgGuesses">${guessesHtml}</div>
+      <div class="guess-wrap">
+        <form class="guess-row" onsubmit="submitCountryGuess(event)" autocomplete="off">
+          <input type="text" id="cgInput" placeholder="🔎 Type a country…" autocomplete="off" autofocus
+            oninput="handleCountryTypeahead(this.value)" onblur="hideCgSuggestionsSoon()" onfocus="handleCountryTypeahead(this.value)">
+          <button class="btn btn-primary" type="submit">Guess</button>
+        </form>
+        <div class="suggestions hidden" id="cgSuggestions"></div>
+      </div>
+    </div>
+    <button class="btn btn-outline btn-block" onclick="quitCountryGame()">🏳️ Give up &amp; reveal</button>
+  `;
+}
+
+function renderCountryGuessRow(g, stat){
+  const dirChip = g.correct ? '' : `<span class="cg-chip">🧭 Head ${g.direction} ${DIR_ARROWS[g.direction] || ''}</span>`;
+  const statIcon = stat.key === 'hdi' ? '📊' : '💰';
+  return `<div class="cg-guess ${g.correct ? 'correct' : ''}">
+    <div class="cg-name">${g.correct ? '🎉 ' : ''}${g.name}</div>
+    <div class="cg-chips">
+      <span class="cg-chip ${g.continentMatch ? 'good' : 'bad'}">${g.continentMatch ? '✅ Right continent!' : '❌ Wrong continent'}</span>
+      ${g.correct ? '' : `<span class="cg-chip">📏 Go ${g.size === 'bigger' ? 'BIGGER ⬆️' : 'SMALLER ⬇️'}</span>`}
+      ${g.correct ? '' : `<span class="cg-chip">👥 ${g.population === 'more' ? 'MORE people ⬆️' : 'FEWER people ⬇️'}</span>`}
+      ${dirChip}
+      ${g.correct ? '' : `<span class="cg-chip">${statIcon} ${stat.label}: ${g.statHigher === 'higher' ? 'HIGHER ⬆️' : 'LOWER ⬇️'}</span>`}
+    </div>
+  </div>`;
+}
+
+function getCountrySuggestionMatches(query){
+  const q = (query || "").trim().toLowerCase();
+  if(q.length < 1) return [];
+  const guessedNames = new Set((countryGameState ? countryGameState.guesses : []).map(g => g.name));
+  return COUNTRIES.map(c => c.name).filter(name => name.toLowerCase().startsWith(q) && !guessedNames.has(name)).slice(0, 6);
+}
+function handleCountryTypeahead(value){
+  const box = document.getElementById("cgSuggestions");
+  if(!box) return;
+  const matches = getCountrySuggestionMatches(value);
+  if(matches.length === 0){ box.classList.add("hidden"); box.innerHTML = ""; return; }
+  box.innerHTML = matches.map(m => `<div class="sug-item" onmousedown="selectCountrySuggestion('${m.replace(/'/g,"\\'")}')">${m}</div>`).join("");
+  box.classList.remove("hidden");
+}
+function selectCountrySuggestion(name){
+  const input = document.getElementById("cgInput");
+  if(!input) return;
+  input.value = name;
+  hideCgSuggestions();
+  submitCountryGuess(new Event("submit"));
+}
+function hideCgSuggestions(){
+  const box = document.getElementById("cgSuggestions");
+  if(box){ box.classList.add("hidden"); box.innerHTML = ""; }
+}
+function hideCgSuggestionsSoon(){ setTimeout(hideCgSuggestions, 150); }
+
+function submitCountryGuess(e){
+  if(e && e.preventDefault) e.preventDefault();
+  const cs = countryGameState;
+  if(!cs || cs.solved || cs.failed) return;
+  const input = document.getElementById("cgInput");
+  const raw = input ? input.value : "";
+  const guess = resolveCountryGuess(raw);
+  if(!guess){
+    showToast("🌎 Not a recognized country name");
+    return;
+  }
+  if(cs.guesses.some(g => g.name === guess.name)){
+    showToast("Already guessed that one");
+    return;
+  }
+  const result = computeCountryGuessResult(guess, cs.answer, cs.stat);
+  cs.guesses.push(result);
+  if(input) input.value = "";
+  hideCgSuggestions();
+  if(result.correct){
+    cs.solved = true;
+    AudioFX.win();
+    finishCountryGame();
+    return;
+  }
+  AudioFX.wrong();
+  if(cs.guesses.length >= 6){
+    cs.failed = true;
+    AudioFX.lose();
+    finishCountryGame();
+    return;
+  }
+  if(cs.isDaily) persistCountryGame();
+  renderCountryRound();
+}
+
+function persistCountryGame(){
+  const cs = countryGameState;
+  if(!cs || !cs.isDaily) return;
+  state.countryGame = { dayIndex: cs.dayIndex, guesses: cs.guesses, solved: cs.solved, failed: cs.failed };
+  saveState();
+}
+
+/* Deliberately does NOT call addScore()/touch state.score — same reasoning
+   as Blitz/Survival: score only syncs to the real backend through the
+   server-authoritative /api/finish-round flow, so any other code path that
+   bumps it locally risks a silent desync (a signed-in player's earned points
+   vanishing the next time syncProfileFromServer() pulls the server's
+   unaware value back down). This mode stays a self-contained, locally
+   tracked side activity — solving it is its own reward, plus the share grid. */
+function finishCountryGame(){
+  const cs = countryGameState;
+  if(cs.isDaily){
+    persistCountryGame();
+    if(cs.solved) showToast(`🎉 Solved in ${cs.guesses.length}/6!`);
+  } else if(cs.solved){
+    state.countryPracticeSolved = (state.countryPracticeSolved || 0) + 1;
+    saveState();
+    showToast(`🎉 Practice solved in ${cs.guesses.length}/6!`);
+  }
+  renderCountryResult({ guesses: cs.guesses, answer: cs.answer, solved: cs.solved, isDaily: cs.isDaily, stat: cs.stat });
+}
+
+function quitCountryGame(){
+  const cs = countryGameState;
+  if(!cs){ renderCountryGame(); return; }
+  cs.failed = true;
+  AudioFX.click();
+  finishCountryGame();
+}
+
+function renderCountryResult(ctx){
+  const { guesses, answer, solved, isDaily, stat } = ctx;
+  const guessesHtml = guesses.map(g => renderCountryGuessRow(g, stat)).join("");
+  main.innerHTML = `
+    <div class="card center" style="border-color:${solved ? 'var(--green)' : 'var(--red)'};border-width:2px;">
+      <div style="font-size:44px;line-height:1;">${solved ? '🎉' : '💔'}</div>
+      <h2 style="color:${solved ? 'var(--green)' : 'var(--red)'};font-size:24px;margin-top:6px;">${solved ? 'Solved!' : 'Out of guesses'}</h2>
+      <p class="sub">The answer was <b style="color:#e2e8f0">${answer.name}</b> (${answer.continent}, capital ${answer.capital}).</p>
+    </div>
+    <div class="card">${guessesHtml || '<p class="sub">No guesses made.</p>'}</div>
+    <button class="btn btn-primary btn-block" onclick="shareCountryResult(${!!solved}, ${guesses.length}, ${!!isDaily})">📤 Share result</button>
+    ${isDaily ? `<p class="sub" style="text-align:center;margin-top:10px;">Come back tomorrow for a new country${state.premium ? ', or practice with a random one right now.' : '.'}</p>` : ''}
+    ${!isDaily ? `<button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="startCountryGame(false)">🧪 Another practice puzzle</button>` : ''}
+    ${isDaily && state.premium ? `<button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="startCountryGame(false)">🧪 Practice (random country)</button>` : ''}
+    <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="goHome()">🏠 Home</button>
+  `;
+}
+
+function shareCountryResult(solved, count, isDaily){
+  const grid = Array.from({length:6}).map((_,i)=> i < count ? (i === count - 1 && solved ? "🟩" : "🟨") : "⬜").join("");
+  const text = `🌎 Guess the Country ${isDaily ? '#' + countryDayIndex() : '(practice)'}\n${grid} ${solved ? count + '/6' : 'X/6'}`;
+  AudioFX.click();
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text)
+      .then(()=>showToast("📋 Result copied to clipboard!"))
+      .catch(()=>showToast("Copy failed — screenshot instead?"));
+  } else {
+    showToast("📋 " + text.replace(/\n/g, " · "));
+  }
+}
+
+/* =========================================================
    DUEL MODE (same-device pass-and-play, Premium-exclusive)
    True cross-device multiplayer would need a backend to sync
    two separate players in real time — out of scope for a
@@ -2046,6 +2974,7 @@ function shareResult(){
    ========================================================= */
 function renderDuelPicker(){
   if(!state.premium){ renderPremium(); return; }
+  setActiveNav("duel");
   const rec = state.duelRecord;
   const levels = ["easy","medium","hard","expert"];
   let html = `<div class="card">
@@ -2145,12 +3074,147 @@ function renderDuelResults(q){
 }
 
 /* =========================================================
+   BLITZ MODE — a timed run through rounds you've already cleared
+   before. Honest replay value: since you already know the answers,
+   this isn't pretending to be a knowledge test anymore, it's a
+   speed/execution challenge, scored on total time across the set.
+   Premium-only, like the rest of Compete.
+   ========================================================= */
+let blitzState = null;
+/* Shared by Blitz and Survival: a shuffled pool of rounds the player has
+   already played at least once (any outcome), so both side modes only ever
+   draw from content that's legitimately unlocked for that player. */
+function pickModeRounds(n){
+  const pool = QUESTIONS.filter(q => (state.playedIds||[]).includes(q.id));
+  for(let i = pool.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, Math.min(n, pool.length)).map(q => q.id);
+}
+function startBlitz(){
+  if(!state.premium){ renderPremium(); return; }
+  const ids = pickModeRounds(5);
+  if(ids.length < 3){
+    showToast("🏆 Clear a few rounds first to unlock Blitz");
+    renderLevels();
+    return;
+  }
+  blitzState = { ids, index: 0, startedAt: Date.now(), legs: [] };
+  AudioFX.click();
+  startRound(ids[0], false, null, { mode: 'blitz' });
+}
+function finishBlitzLeg(completedAll){
+  const rs = roundState;
+  completedAll ? AudioFX.win() : AudioFX.lose();
+  blitzState.legs.push({ questionId: rs.question.id, foundCount: rs.foundCount, total: rs.question.answers.length, completedAll });
+  blitzState.index++;
+  if(blitzState.index < blitzState.ids.length){
+    main.innerHTML = `
+      <div class="card center">
+        <h2>⚡ Round ${blitzState.index} of ${blitzState.ids.length} done</h2>
+        <p class="sub">You found ${rs.foundCount}/${rs.question.answers.length}. The clock's still running — keep the pace up.</p>
+        <button class="btn btn-primary btn-block" onclick="continueBlitz()">▶ Next round</button>
+      </div>
+    `;
+  } else {
+    finishBlitz();
+  }
+}
+function continueBlitz(){
+  const nextId = blitzState.ids[blitzState.index];
+  startRound(nextId, false, null, { mode: 'blitz' });
+}
+function finishBlitz(){
+  const totalElapsed = Date.now() - blitzState.startedAt;
+  const totalFound = blitzState.legs.reduce((s,l)=>s+l.foundCount,0);
+  const totalAnswers = blitzState.legs.reduce((s,l)=>s+l.total,0);
+  const isBest = !state.blitzBestMs || totalElapsed < state.blitzBestMs;
+  if(isBest){ state.blitzBestMs = totalElapsed; saveState(); }
+  const fmtTime = ms => (ms/1000).toFixed(1) + "s";
+  main.innerHTML = `
+    <div class="card center">
+      <h2>⚡ Blitz complete!</h2>
+      <p class="sub">${totalFound}/${totalAnswers} answers across ${blitzState.legs.length} rounds.</p>
+      <div class="duel-score">${fmtTime(totalElapsed)}</div>
+      ${isBest ? `<p class="sub" style="color:var(--green);">🏆 New best time!</p>` : `<p class="sub">Best: ${fmtTime(state.blitzBestMs)}</p>`}
+      <div class="row" style="margin-top:16px;">
+        <button class="btn btn-outline btn-block" onclick="goHome()">🏠 Home</button>
+        <button class="btn btn-primary btn-block" onclick="startBlitz()">⚡ Run again</button>
+      </div>
+    </div>
+  `;
+  blitzState = null;
+}
+
+/* =========================================================
+   SURVIVAL MODE — chain rounds back-to-back with no reset between
+   them; the run ends the instant you don't clear one (10/10). Score
+   is how many you cleared in a row, testing breadth over depth.
+   Premium-only, like the rest of Compete.
+   ========================================================= */
+let survivalState = null;
+function startSurvival(){
+  if(!state.premium){ renderPremium(); return; }
+  const ids = pickModeRounds(50);
+  if(ids.length < 3){
+    showToast("🏆 Clear a few rounds first to unlock Survival");
+    renderLevels();
+    return;
+  }
+  survivalState = { ids, index: 0, cleared: 0 };
+  AudioFX.click();
+  startRound(ids[0], false, null, { mode: 'survival' });
+}
+function finishSurvivalLeg(completedAll){
+  completedAll ? AudioFX.win() : AudioFX.lose();
+  if(!completedAll){ endSurvival(); return; }
+  survivalState.cleared++;
+  survivalState.index++;
+  if(survivalState.index >= survivalState.ids.length){
+    survivalState.ids = pickModeRounds(50);
+    survivalState.index = 0;
+  }
+  main.innerHTML = `
+    <div class="card center">
+      <h2>🔥 ${survivalState.cleared} cleared!</h2>
+      <p class="sub">One slip and the run's over — keep going?</p>
+      <button class="btn btn-primary btn-block" onclick="continueSurvival()">▶ Next round</button>
+      <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="endSurvival()">🏳️ Stop here</button>
+    </div>
+  `;
+}
+function continueSurvival(){
+  const nextId = survivalState.ids[survivalState.index];
+  startRound(nextId, false, null, { mode: 'survival' });
+}
+function endSurvival(){
+  const cleared = survivalState.cleared;
+  const isBest = !state.survivalBest || cleared > state.survivalBest;
+  if(isBest){ state.survivalBest = cleared; saveState(); }
+  main.innerHTML = `
+    <div class="card center">
+      <h2>🔥 Survival run over</h2>
+      <div class="duel-score">${cleared}</div>
+      <p class="sub">rounds cleared in a row.</p>
+      ${isBest ? `<p class="sub" style="color:var(--green);">🏆 New best streak!</p>` : `<p class="sub">Best: ${state.survivalBest}</p>`}
+      <div class="row" style="margin-top:16px;">
+        <button class="btn btn-outline btn-block" onclick="goHome()">🏠 Home</button>
+        <button class="btn btn-primary btn-block" onclick="startSurvival()">🔥 Run again</button>
+      </div>
+    </div>
+  `;
+  survivalState = null;
+}
+
+/* =========================================================
    PERSONAL BESTS ("top players" stand-in — see README: a real
    cross-device leaderboard needs a backend + accounts, which
    this client-only prototype doesn't have. This is the honest
    local equivalent: your own best rounds, on this device.)
    ========================================================= */
 function renderTopRounds(){
+  setActiveNav("bests");
   const info = getLevelInfo(state.score);
   const best = [...state.history]
     .sort((a,b) => (b.foundCount - a.foundCount) || (b.total - a.total))
@@ -2201,7 +3265,20 @@ function renderTopRounds(){
    ========================================================= */
 renderPills();
 renderMuteBtn();
-renderHome();
+(function boot(){
+  const params = new URLSearchParams(window.location.search);
+  if(params.get("challenge")){
+    main.innerHTML = `<div class="card center"><h2>🥊 Loading challenge…</h2></div>`;
+    return; // handed off to initAuth().then() below, once we know if signed in
+  }
+  let seenWelcome = true;
+  try{ seenWelcome = !!localStorage.getItem(WELCOME_SEEN_KEY); }catch(e){}
+  if(!seenWelcome && !params.get("checkout")){
+    renderWelcome();
+  } else {
+    renderHome();
+  }
+})();
 initAuth().then(() => {
   const params = new URLSearchParams(window.location.search);
   if(params.get("checkout") === "success"){
@@ -2209,6 +3286,9 @@ initAuth().then(() => {
     syncProfileFromServer().then(() => { if(document.getElementById("main")) renderPremium(); });
     window.history.replaceState({}, "", window.location.pathname);
   } else if(params.get("checkout") === "cancelled"){
+    window.history.replaceState({}, "", window.location.pathname);
+  } else if(params.get("challenge")){
+    renderChallengeLanding(Number(params.get("challenge")));
     window.history.replaceState({}, "", window.location.pathname);
   }
 });
