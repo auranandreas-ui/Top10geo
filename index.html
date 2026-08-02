@@ -60,13 +60,18 @@
   .brand{
     display:flex;
     align-items:center;
-    gap:8px;
-    font-weight:700;
-    font-size:18px;
+    gap:9px;
+    font-weight:800;
+    font-size:19px;
+    letter-spacing:-.01em;
     cursor:pointer;
+    background:linear-gradient(135deg,#f1f5f9,var(--accent-2) 140%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
   }
-  .brand .globe{font-size:22px;}
-  .stat-pills{display:flex;gap:8px;}
+  .brand .globe{font-size:24px;filter:drop-shadow(0 0 8px rgba(56,189,248,.45));}
+  .stat-pills{display:flex;gap:8px;align-items:center;}
   .pill{
     background:var(--card-2);
     border:1px solid var(--border);
@@ -79,6 +84,8 @@
     white-space:nowrap;
   }
   .pill.gold{color:var(--gold);}
+  .pill.ok{color:var(--green);border-color:rgba(52,211,153,.4);cursor:pointer;}
+  .pill.warn{color:var(--gold);border-color:rgba(251,191,36,.5);background:rgba(251,191,36,.08);cursor:pointer;}
   main{padding:18px 20px;flex:1;}
   .card{
     background:var(--card);
@@ -350,12 +357,7 @@
 <div class="app">
   <header class="top">
     <div class="brand" onclick="goHome()"><span class="globe">🌍</span> Top 10 Geo</div>
-    <div class="stat-pills">
-      <div class="pill">🔥 <span id="pillStreak">0</span></div>
-      <div class="pill gold">★ <span id="pillScore">0</span></div>
-      <div class="pill" id="pillPremium">Free</div>
-      <div class="pill mute-btn" id="muteBtn" onclick="toggleMute()">🔊</div>
-    </div>
+    <div class="stat-pills" id="headerStatus"></div>
   </header>
 
   <main id="main"></main>
@@ -1284,13 +1286,13 @@ const AudioFX = (function(){
 })();
 function toggleMute(){
   const nowMuted = AudioFX.toggleMute();
-  renderMuteBtn();
+  renderHeaderStatus();
   if(!nowMuted) AudioFX.click();
 }
-function renderMuteBtn(){
-  const btn = document.getElementById("muteBtn");
-  if(btn) btn.textContent = AudioFX.isMuted() ? "🔇" : "🔊";
-}
+/* Kept as a thin alias — a couple of early-boot call sites still call this
+   name before renderHeaderStatus() is defined further down the file (function
+   declarations are hoisted, so this works fine either way). */
+function renderMuteBtn(){ renderHeaderStatus(); }
 
 /* =========================================================
    STATE
@@ -1432,24 +1434,64 @@ const backendEnabled = !!(BACKEND.supabaseUrl && BACKEND.supabaseAnonKey);
 let sb = null;
 let authSession = null;
 if(backendEnabled && window.supabase){
-  sb = window.supabase.createClient(BACKEND.supabaseUrl, BACKEND.supabaseAnonKey);
+  // Explicit (matches supabase-js defaults, but stated on purpose): keep the
+  // session in localStorage and let the client auto-refresh the access
+  // token in the background so a long-lived tab doesn't silently fall out
+  // of being signed in.
+  sb = window.supabase.createClient(BACKEND.supabaseUrl, BACKEND.supabaseAnonKey, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+  });
 }
 
+/* Access tokens expire (~1hr). Auto-refresh normally keeps `authSession`
+   current, but there's a real race window — e.g. a backgrounded tab, or a
+   round finishing right as the token turns over — where apiFetch can still
+   send a stale token. Previously a 401 here was swallowed silently: the
+   client had already bumped score/streak optimistically in memory, so the
+   round LOOKED saved, but the server never actually recorded it — and the
+   next successful profile sync would quietly overwrite the local value back
+   down, which is what "streak doesn't update" was actually reporting. Now:
+   on a 401, try one silent session refresh + retry (covers the common
+   race), and if that also fails, surface it clearly instead of hiding it. */
 async function apiFetch(path, opts){
   opts = opts || {};
-  const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
-  if(authSession && authSession.access_token){
-    headers["Authorization"] = "Bearer " + authSession.access_token;
+  const doFetch = async () => {
+    const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
+    if(authSession && authSession.access_token){
+      headers["Authorization"] = "Bearer " + authSession.access_token;
+    }
+    return fetch(path, Object.assign({}, opts, { headers }));
+  };
+  let res = await doFetch();
+  if(res.status === 401 && sb && authSession){
+    try{
+      const { data, error } = await sb.auth.refreshSession();
+      if(!error && data && data.session){
+        authSession = data.session;
+        res = await doFetch();
+      }
+    }catch(e){ /* refresh failed — fall through to the still-401 response below */ }
   }
-  const res = await fetch(path, Object.assign({}, opts, { headers }));
   let data = null;
   try{ data = await res.json(); }catch(e){ /* no body */ }
   if(!res.ok){
     const err = new Error((data && data.error) || ("Request failed (" + res.status + ")"));
     err.status = res.status;
+    if(res.status === 401) handleSessionExpired();
     throw err;
   }
   return data;
+}
+
+/* Called whenever the server tells us the session is actually invalid (not
+   just a transient race the refresh-and-retry above already handled).
+   Clears local auth state and makes it visibly obvious + one tap to fix,
+   instead of silently reverting to local-only mode with no explanation. */
+function handleSessionExpired(){
+  if(!authSession) return; // already handled
+  authSession = null;
+  renderHeaderStatus();
+  showToast("⚠️ Signed out — tap the header to sign in again");
 }
 
 function applyServerProfile(p){
@@ -1485,6 +1527,7 @@ async function signOut(){
   if(!sb) return;
   await sb.auth.signOut();
   authSession = null;
+  renderHeaderStatus();
   showToast("Signed out");
   renderPremium();
 }
@@ -1495,9 +1538,11 @@ async function initAuth(){
   sb.auth.onAuthStateChange((_event, session) => {
     const justSignedIn = !authSession && session;
     authSession = session;
+    renderHeaderStatus();
     syncProfileFromServer().then(() => { if(justSignedIn) renderPremium(); });
   });
   if(authSession) await syncProfileFromServer();
+  renderHeaderStatus();
 }
 
 /* =========================================================
@@ -1592,14 +1637,30 @@ function renderBottomNav(){
       <span class="icon">${item.icon}</span>${item.id === "premium" ? (state.premium ? "Account" : "Premium") : item.label}
     </button>`).join("");
 }
-function renderPills(){
-  document.getElementById("pillStreak").textContent = state.streak;
-  const info = getLevelInfo(state.score);
-  document.getElementById("pillScore").textContent = `${state.score} · Lv${info.level}`;
-  const p = document.getElementById("pillPremium");
-  p.textContent = state.premium ? "★ Premium" : "Free";
-  p.style.color = state.premium ? "#fbbf24" : "";
+/* Header is intentionally minimal: just the brand plus whether you're
+   signed in (tap to fix if not) and the mute toggle. Score/streak/premium
+   status live on the Home screen instead of following you on every screen —
+   this is also the one place a dropped session becomes visibly obvious
+   (see handleSessionExpired()), instead of silently reverting to
+   local-only mode with no explanation. Renamed from the old renderPills(),
+   kept the same name available via renderPills() below for any stray
+   call sites. */
+function renderHeaderStatus(){
+  const box = document.getElementById("headerStatus");
+  if(!box) return;
+  let authPill = "";
+  if(backendEnabled){
+    if(authSession){
+      const email = (authSession.user && authSession.user.email) || "Signed in";
+      const short = email.length > 16 ? email.slice(0, 14) + "…" : email;
+      authPill = `<div class="pill ok" onclick="renderPremium()" title="${email} — tap for account">✅ ${short}</div>`;
+    } else {
+      authPill = `<div class="pill warn" onclick="renderPremium()" title="Tap to sign in">🔓 Sign in</div>`;
+    }
+  }
+  box.innerHTML = `${authPill}<div class="pill mute-btn" id="muteBtn" onclick="toggleMute()">${AudioFX.isMuted() ? "🔇" : "🔊"}</div>`;
 }
+function renderPills(){ renderHeaderStatus(); }
 
 /* =========================================================
    ROUTER / VIEWS
@@ -1914,7 +1975,6 @@ function startRound(questionId, isDaily, duelCtx, opts){
     found: new Array(q.answers.length).fill(null),
     foundCount: 0,
     wrongGuesses: new Set(),
-    categoryPromptShown: false,
     over: false
   };
   renderRound();
@@ -1999,53 +2059,6 @@ function hideSuggestionsSoon(){
   setTimeout(hideSuggestions, 150);
 }
 
-/* Mini-bonus that leans into the hidden-title mechanic instead of just being
-   a spoiler-blocker: once a player finds their first 3 answers, ask them to
-   guess what the round is actually about, for a small score bonus. Skipped
-   in Duel Mode since that's a speed contest. */
-function renderCategoryGuessPrompt(){
-  const rs = roundState;
-  const q = rs.question;
-  const correctType = answerTypeFor(q);
-  const distractors = Object.keys(TYPE_LABELS).filter(t => t !== correctType);
-  for(let i = distractors.length - 1; i > 0; i--){
-    const j = Math.floor(Math.random() * (i + 1));
-    [distractors[i], distractors[j]] = [distractors[j], distractors[i]];
-  }
-  const options = [correctType, ...distractors.slice(0, 3)];
-  for(let i = options.length - 1; i > 0; i--){
-    const j = Math.floor(Math.random() * (i + 1));
-    [options[i], options[j]] = [options[j], options[i]];
-  }
-  main.innerHTML = `
-    <div class="card center">
-      <h2>🔮 Bonus guess</h2>
-      <p class="sub">You've found 3 answers — what do you think this round is about?</p>
-      <div class="cat-list">
-        ${options.map(t => `<button class="btn btn-outline btn-block" onclick="answerCategoryGuess('${t}')">${TYPE_LABELS[t]}</button>`).join("")}
-      </div>
-      <button class="btn btn-outline btn-block" style="margin-top:10px;opacity:.7;" onclick="skipCategoryGuess()">Skip</button>
-    </div>
-  `;
-}
-function answerCategoryGuess(guessType){
-  const rs = roundState;
-  if(!rs || rs.over) return;
-  const correct = answerTypeFor(rs.question) === guessType;
-  if(correct){
-    const bonus = addScore(10);
-    showToast(`🔮 Nice guess! +${bonus} bonus points`);
-    AudioFX.win();
-  } else {
-    showToast("🔮 Not quite — keep playing!");
-  }
-  saveState();
-  renderRound();
-}
-function skipCategoryGuess(){
-  renderRound();
-}
-
 function useHint(){
   const rs = roundState;
   if(!rs || rs.over) return;
@@ -2099,11 +2112,6 @@ function submitGuess(e, fromSuggestion){
     saveState();
     if(rs.foundCount === q.answers.length){
       finishRound(true);
-      return;
-    }
-    if(rs.foundCount === 3 && !rs.categoryPromptShown && !rs.duel && !rs.mode){
-      rs.categoryPromptShown = true;
-      renderCategoryGuessPrompt();
       return;
     }
   } else {
@@ -3263,8 +3271,7 @@ function renderTopRounds(){
 /* =========================================================
    INIT
    ========================================================= */
-renderPills();
-renderMuteBtn();
+renderHeaderStatus();
 (function boot(){
   const params = new URLSearchParams(window.location.search);
   if(params.get("challenge")){
