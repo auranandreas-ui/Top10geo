@@ -43,12 +43,13 @@
     min-height:100vh;
     display:flex;
     flex-direction:column;
-    padding-bottom:84px;
+    padding-bottom:24px;
   }
   header.top{
     display:flex;
     align-items:center;
     justify-content:space-between;
+    gap:10px;
     padding:18px 20px;
     position:sticky;
     top:0;
@@ -56,6 +57,11 @@
     backdrop-filter:blur(6px);
     z-index:10;
     border-bottom:1px solid var(--border);
+  }
+  .menu-btn{
+    background:var(--card-2);border:1px solid var(--border);color:var(--text);
+    border-radius:10px;width:38px;height:38px;font-size:18px;line-height:1;
+    cursor:pointer;flex-shrink:0;
   }
   .brand{
     display:flex;
@@ -153,33 +159,36 @@
     cursor:pointer;
   }
   .nav-tabs button.active{background:var(--accent);color:#04202e;border-color:var(--accent);}
-  .bottom-nav{
-    position:fixed;
-    left:0;right:0;bottom:0;
-    max-width:520px;
-    margin:0 auto;
-    display:flex;
-    background:rgba(15,23,42,0.96);
-    backdrop-filter:blur(6px);
-    border-top:1px solid var(--border);
-    z-index:40;
+  .nav-menu-overlay{
+    position:fixed;inset:0;background:rgba(2,6,17,.55);z-index:49;
+    opacity:0;pointer-events:none;transition:opacity .18s ease;
   }
-  .bottom-nav button{
-    flex:1;
-    background:transparent;
-    border:none;
-    color:var(--text-dim);
-    font-size:11px;
-    font-weight:600;
-    padding:9px 4px 12px;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:3px;
-    cursor:pointer;
+  .nav-menu-overlay.show{opacity:1;pointer-events:auto;}
+  .nav-menu{
+    position:fixed;top:0;bottom:0;left:0;width:250px;max-width:78vw;
+    background:var(--card);border-right:1px solid var(--border);
+    z-index:50;transform:translateX(-100%);transition:transform .2s ease;
+    display:flex;flex-direction:column;padding:70px 0 20px;overflow-y:auto;
   }
-  .bottom-nav button .icon{font-size:19px;}
-  .bottom-nav button.active{color:var(--accent);}
+  .nav-menu.open{transform:translateX(0);}
+  .nav-menu button{
+    background:transparent;border:none;color:var(--text-dim);
+    font-size:15px;font-weight:600;padding:13px 20px;
+    display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;
+    font-family:inherit;
+  }
+  .nav-menu button .icon{font-size:19px;width:22px;text-align:center;}
+  .nav-menu button.active{color:var(--accent);background:rgba(56,189,248,.08);}
+  .nav-menu button:hover{background:rgba(148,163,184,.08);}
+  .confetti-layer{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:80;}
+  .confetti-piece{
+    position:absolute;top:-10px;border-radius:2px;opacity:.95;
+    animation-name:confetti-fall;animation-timing-function:ease-in;animation-fill-mode:forwards;
+  }
+  @keyframes confetti-fall{
+    0%{ transform:translate(0,0) rotate(var(--rot-start)); opacity:1; }
+    100%{ transform:translate(var(--drift),105vh) rotate(var(--rot-end)); opacity:.3; }
+  }
   .round-visual{display:flex;justify-content:center;margin:6px 0 2px;color:var(--accent);opacity:.85;}
   .cat-list{display:flex;flex-direction:column;gap:10px;}
   .cat-item{
@@ -381,6 +390,7 @@
 <body>
 <div class="app">
   <header class="top">
+    <button class="menu-btn" id="menuBtn" onclick="toggleNavMenu()" aria-label="Menu">☰</button>
     <div class="brand" onclick="goHome()"><span class="globe">🌍</span> Top 10 Geo</div>
     <div class="stat-pills" id="headerStatus"></div>
   </header>
@@ -390,8 +400,10 @@
   <footer class="note">Prototype build · answer data is illustrative and simplified for gameplay, not a cited reference source.<br>Questions or feedback? <a href="mailto:auranandreas@gmail.com" style="color:var(--accent);">auranandreas@gmail.com</a></footer>
 </div>
 
-<nav class="bottom-nav" id="bottomNav"></nav>
+<div class="nav-menu-overlay" id="navMenuOverlay" onclick="closeNavMenu()"></div>
+<nav class="nav-menu" id="navMenu"></nav>
 <div class="toast" id="toast"></div>
+<div class="confetti-layer" id="confettiLayer"></div>
 
 <script>
 /* =========================================================
@@ -1641,15 +1653,51 @@ function showToast(msg){
   clearTimeout(showToast._t);
   showToast._t = setTimeout(()=>t.classList.remove("show"), 1800);
 }
-/* Persistent bottom navigation, present on every screen so players don't
-   have to hunt for a "back home" button to reach another section. Each
-   render* view sets the active tab by calling setActiveNav() near the top
-   of its function. */
+/* Lightweight celebratory burst for a clean win/solve — a fixed handful of
+   CSS-animated pieces, no canvas or external library, self-cleaning via
+   setTimeout so the layer never accumulates leftover nodes. Shared across
+   every game's "you nailed it" moment (10/10 trivia round, Guess the
+   Country solve, Geo-Bingo full clear, a strong Mapster score). */
+const CONFETTI_COLORS = ["#38bdf8","#22d3ee","#34d399","#fbbf24","#f87171","#a78bfa"];
+function fireConfetti(count){
+  const layer = document.getElementById("confettiLayer");
+  if(!layer) return;
+  count = count || 60;
+  for(let i = 0; i < count; i++){
+    const piece = document.createElement("div");
+    piece.className = "confetti-piece";
+    const startX = Math.random() * 100;
+    const drift = (Math.random() - 0.5) * 160;
+    const rotStart = Math.random() * 360;
+    const rotEnd = rotStart + (Math.random() > 0.5 ? 1 : -1) * (360 + Math.random() * 360);
+    const duration = 1600 + Math.random() * 1200;
+    const delay = Math.random() * 250;
+    const size = 6 + Math.random() * 6;
+    piece.style.left = startX + "vw";
+    piece.style.width = size + "px";
+    piece.style.height = (size * 0.4) + "px";
+    piece.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+    piece.style.setProperty("--drift", drift + "px");
+    piece.style.setProperty("--rot-start", rotStart + "deg");
+    piece.style.setProperty("--rot-end", rotEnd + "deg");
+    piece.style.animationDuration = duration + "ms";
+    piece.style.animationDelay = delay + "ms";
+    layer.appendChild(piece);
+    setTimeout(() => piece.remove(), duration + delay + 100);
+  }
+}
+/* Navigation lives in a slide-out menu opened from a hamburger icon at the
+   top-left, rather than a persistent bottom bar — with Home, Guess the
+   Country, Geo-Bingo, Mapster, Compete, Duel, Bests, and Premium all
+   present, a bottom bar was getting visually crowded and doesn't leave
+   room for future games. Each render* view sets the active item by
+   calling setActiveNav() near the top of its function; the menu itself
+   auto-closes after navigating anywhere. */
 const NAV_ITEMS = [
   { id: "home",    icon: "🏠", label: "Home",    go: "goHome()" },
-  { id: "guessgame", icon: "🌎", label: "Guess", go: "renderCountryGame()" },
-  { id: "geobingo", icon: "🎯", label: "Bingo", go: "renderGeoBingo()" },
-  { id: "mapster", icon: "🗺️", label: "Draw", go: "renderMapster()" },
+  { id: "guessgame", icon: "🌎", label: "Guess the Country", go: "renderCountryGame()" },
+  { id: "geobingo", icon: "🎯", label: "Geo-Bingo", go: "renderGeoBingo()" },
+  { id: "mapster", icon: "🗺️", label: "Mapster", go: "renderMapster()" },
   { id: "practice",icon: "🏆", label: "Compete", go: "renderLevels()" },
   { id: "duel",    icon: "⚔️", label: "Duel",     go: "state.premium ? renderDuelPicker() : renderPremium()" },
   { id: "bests",   icon: "🏅", label: "Bests",    go: "renderTopRounds()" },
@@ -1661,12 +1709,26 @@ function setActiveNav(id){
   renderBottomNav();
 }
 function renderBottomNav(){
-  const nav = document.getElementById("bottomNav");
+  const nav = document.getElementById("navMenu");
   if(!nav) return;
   nav.innerHTML = NAV_ITEMS.map(item => `
-    <button class="${activeNavTab===item.id ? 'active' : ''}" onclick="${item.go}">
+    <button class="${activeNavTab===item.id ? 'active' : ''}" onclick="closeNavMenu();${item.go}">
       <span class="icon">${item.icon}</span>${item.id === "premium" ? (state.premium ? "Account" : "Premium") : item.label}
     </button>`).join("");
+}
+function toggleNavMenu(){
+  const nav = document.getElementById("navMenu");
+  const overlay = document.getElementById("navMenuOverlay");
+  if(!nav || !overlay) return;
+  const opening = !nav.classList.contains("open");
+  nav.classList.toggle("open", opening);
+  overlay.classList.toggle("show", opening);
+}
+function closeNavMenu(){
+  const nav = document.getElementById("navMenu");
+  const overlay = document.getElementById("navMenuOverlay");
+  if(nav) nav.classList.remove("open");
+  if(overlay) overlay.classList.remove("show");
 }
 /* Header is intentionally minimal: just the brand plus whether you're
    signed in (tap to fix if not) and the mute toggle. Score/streak/premium
@@ -1739,13 +1801,13 @@ function renderHome(){
       <p class="sub" style="margin:8px 0 0;font-size:12px;">🗺️ ${getCompletedQuestionIds().size}/${QUESTIONS.length} rounds cleared overall</p>
     </div>
 
-    <div class="card">
+    <div class="card" style="border-color:var(--green);">
       <span class="badge ${daily.difficulty}">${LEVEL_ICON[daily.difficulty] || "🌍"} ${daily.difficulty}</span>
-      <h2 style="margin-top:8px;">🌍 Today's Free Question</h2>
+      <h2 style="margin-top:8px;">🌍 Guess the Top 10</h2>
       <p class="sub">One new round every day, free for everyone. The topic's a surprise until you press play.</p>
       ${playedToday
         ? `<button class="btn btn-outline btn-block" disabled>Come back tomorrow ✅</button>`
-        : `<button class="btn btn-primary btn-block" onclick="startRound(${daily.id}, true)">▶ Play Today's Question</button>`
+        : `<button class="btn btn-primary btn-block" onclick="startRound(${daily.id}, true)">▶ Play</button>`
       }
     </div>
 
@@ -1759,11 +1821,11 @@ function renderHome(){
     <div class="card" style="border-color:var(--gold);">
       <span class="badge medium">New</span>
       <h2 style="margin-top:8px;">🎯 Geo-Bingo</h2>
-      <p class="sub">A country or city appears one at a time — pick the one open square on your 4x4 card that's true for it. Complete a line before the locations run out.</p>
+      <p class="sub">A country or city appears one at a time — pick the one open square on your 4x4 card that's true for it. Fill the whole board before the locations run out.</p>
       <button class="btn btn-primary btn-block" onclick="renderGeoBingo()">▶ Play</button>
     </div>
 
-    <div class="card" style="border-color:var(--accent-2);">
+    <div class="card" style="border-color:#a78bfa;">
       <span class="badge medium">New</span>
       <h2 style="margin-top:8px;">🗺️ Mapster</h2>
       <p class="sub">You get a country's name and a blank canvas — freehand sketch its borders from memory, then submit to see how close you got. Two hints available if you get stuck.</p>
@@ -2290,6 +2352,7 @@ function finalizeRound(completedAll, shieldAlreadyUsed){
   saveState();
   syncRoundToServer(q, rs, completedAll, shieldUsed);
   completedAll ? AudioFX.win() : AudioFX.lose();
+  if(completedAll) fireConfetti();
 
   const revealHtml = q.answers.map((a,i)=>{
     const got = !!rs.found[i];
@@ -2937,6 +3000,7 @@ function submitCountryGuess(e){
   if(result.correct){
     cs.solved = true;
     AudioFX.win();
+    fireConfetti();
     finishCountryGame();
     return;
   }
@@ -3057,6 +3121,17 @@ const GB_FEDERAL = ["Germany","United States","Brazil","India","Russia","Mexico"
 const GB_G7 = ["United States","Canada","United Kingdom","France","Germany","Italy","Japan"];
 const GB_G20 = GB_G7.concat(["China","India","Russia","Brazil","Australia","South Korea","Indonesia","Saudi Arabia","Turkey","Mexico","South Africa","Argentina"]);
 const GB_DESERT = ["Egypt","China","United States","Australia","Chile","Mexico","Saudi Arabia","Kazakhstan","India","Pakistan","Peru","Argentina"];
+// Country-level ocean/sea access — added alongside the existing city-level
+// `sea` field (bug fix: a country prompt like Japan or Thailand previously
+// could NEVER match "Touches the Pacific," since that category only ever
+// checked p.sea, which is undefined on country-type prompts). Cities keep
+// using their own precise `sea` field (e.g. Cairo itself touches no sea
+// even though Egypt the country does, via Alexandria/the coast) — these
+// lists are only consulted for country-type prompts.
+const GB_TOUCHES_ATLANTIC = ["Nigeria","South Africa","Morocco","United Kingdom","France","Spain","Netherlands","Germany","Sweden","Poland","Portugal","United States","Canada","Mexico","Brazil","Argentina","Colombia"];
+const GB_TOUCHES_PACIFIC = ["China","Japan","Russia","Indonesia","South Korea","Thailand","Vietnam","United States","Canada","Mexico","Chile","Peru","Colombia","Australia","New Zealand"];
+const GB_TOUCHES_INDIAN = ["Egypt","South Africa","Kenya","Saudi Arabia","India","Pakistan","Indonesia","Thailand","Israel","Australia"];
+const GB_TOUCHES_MEDITERRANEAN = ["Egypt","Morocco","Turkey","Israel","Italy","Spain","France","Greece"];
 
 // ---- curated country pool (must be names present in COUNTRIES) ----
 const GEOBINGO_COUNTRY_POOL = [
@@ -3118,10 +3193,10 @@ const GEOBINGO_CATEGORIES = [
   { key:"federal", label:"Federal Republic", test:p => GB_FEDERAL.includes(gbCountryName(p)) },
   { key:"g7", label:"G7 Member", test:p => GB_G7.includes(gbCountryName(p)) },
   { key:"g20", label:"G20 Member", test:p => GB_G20.includes(gbCountryName(p)) },
-  { key:"seaMed", label:"Touches the Mediterranean", test:p => p.type === 'city' && p.sea === 'Mediterranean' },
-  { key:"seaAtlantic", label:"Touches the Atlantic", test:p => p.type === 'city' && p.sea === 'Atlantic' },
-  { key:"seaPacific", label:"Touches the Pacific", test:p => p.type === 'city' && p.sea === 'Pacific' },
-  { key:"seaIndian", label:"Touches the Indian Ocean", test:p => p.type === 'city' && p.sea === 'Indian' },
+  { key:"seaMed", label:"Touches the Mediterranean", test:p => p.type === 'city' ? p.sea === 'Mediterranean' : GB_TOUCHES_MEDITERRANEAN.includes(gbCountryName(p)) },
+  { key:"seaAtlantic", label:"Touches the Atlantic", test:p => p.type === 'city' ? p.sea === 'Atlantic' : GB_TOUCHES_ATLANTIC.includes(gbCountryName(p)) },
+  { key:"seaPacific", label:"Touches the Pacific", test:p => p.type === 'city' ? p.sea === 'Pacific' : GB_TOUCHES_PACIFIC.includes(gbCountryName(p)) },
+  { key:"seaIndian", label:"Touches the Indian Ocean", test:p => p.type === 'city' ? p.sea === 'Indian' : GB_TOUCHES_INDIAN.includes(gbCountryName(p)) },
   { key:"river", label:"Crossed by a Major River", test:p => p.type === 'city' && !!p.river },
   { key:"capitalCity", label:"National Capital City", test:p => p.type === 'city' && !!p.isCapital },
   { key:"cityPop10m", label:"City Population 10M+", test:p => p.type === 'city' && (p.population || 0) >= 10000000 },
@@ -3185,13 +3260,14 @@ function buildGeoBingoPuzzle(seed){
   const prompts = seededShuffle(GEOBINGO_PROMPTS, rng);
   return { categories, prompts };
 }
-const GB_LINES = [
-  [0,1,2,3],[4,5,6,7],[8,9,10,11],[12,13,14,15],
-  [0,4,8,12],[1,5,9,13],[2,6,10,14],[3,7,11,15],
-  [0,5,10,15],[3,6,9,12]
-];
-function geoBingoHasLine(categories){
-  return GB_LINES.some(line => line.every(i => categories[i] && categories[i].marked));
+// Win condition: fill EVERY square on the 4x4 card correctly (not just one
+// line) within a fixed budget of location prompts — a bit of slack above
+// the 16-square minimum so a few wrong picks along the way don't
+// automatically doom the round, but running out of prompts before the
+// board is fully cleared is a real fail state.
+const GEOBINGO_PROMPT_BUDGET = 26;
+function geoBingoBoardCleared(categories){
+  return categories.every(c => c.marked);
 }
 
 let geoBingoState = null;
@@ -3210,7 +3286,7 @@ function renderGeoBingo(){
   main.innerHTML = `
     <div class="card center">
       <h2>🎯 Geo-Bingo</h2>
-      <p class="sub">A country or city appears one at a time — pick the ONE open square on your 4x4 card that's true for it. Complete a row, column, or diagonal before the locations run out.</p>
+      <p class="sub">A country or city appears one at a time — pick the ONE open square on your 4x4 card that's true for it. Fill all 16 squares correctly within ${GEOBINGO_PROMPT_BUDGET} locations to clear the board.</p>
       <button class="btn btn-primary btn-block" onclick="startGeoBingo(true)">${playedToday ? "▶ Continue today's card" : "▶ Play today's card"}</button>
       ${state.premium
         ? `<button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="startGeoBingo(false)">🧪 Practice (fresh card)</button>`
@@ -3250,9 +3326,10 @@ function startGeoBingo(isDaily){
 function renderGeoBingoRound(){
   const gs = geoBingoState;
   if(!gs){ renderGeoBingo(); return; }
-  if(gs.promptIndex >= gs.prompts.length){ gs.failed = true; finishGeoBingo(); return; }
+  if(gs.promptIndex >= GEOBINGO_PROMPT_BUDGET){ gs.failed = true; finishGeoBingo(); return; }
   const prompt = gs.prompts[gs.promptIndex];
   const promptLabel = prompt.type === 'city' ? `${prompt.name}, ${prompt.country}` : prompt.name;
+  const remaining = gs.categories.filter(c => !c.marked).length;
   const gridHtml = gs.categories.map((c,i) => `
     <button class="gb-cell ${c.marked ? 'marked' : ''}" ${c.marked ? 'disabled' : ''} onclick="submitGeoBingoGuess(${i})">${c.label}</button>
   `).join("");
@@ -3260,10 +3337,10 @@ function renderGeoBingoRound(){
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;">
         <span class="badge ${gs.isDaily ? 'expert' : 'medium'}">${gs.isDaily ? '🎯 Daily card' : '🧪 Practice'}</span>
-        <span style="color:var(--text-dim);font-size:12px;">${gs.promptIndex+1}/${gs.prompts.length} locations</span>
+        <span style="color:var(--text-dim);font-size:12px;">${gs.promptIndex+1}/${GEOBINGO_PROMPT_BUDGET} locations · ${remaining} square${remaining===1?'':'s'} left</span>
       </div>
       <div class="gb-prompt">${prompt.type==='city' ? '🏙️' : '🌍'} ${promptLabel}</div>
-      <p class="sub" style="text-align:center;margin-top:-6px;">Pick the ONE open square that's true for this ${prompt.type === 'city' ? 'city' : 'country'}.</p>
+      <p class="sub" style="text-align:center;margin-top:-6px;">Pick the ONE open square that's true for this ${prompt.type === 'city' ? 'city' : 'country'}. Fill every square before the locations run out.</p>
       <div class="gb-grid">${gridHtml}</div>
     </div>
     <button class="btn btn-outline btn-block" onclick="quitGeoBingo()">🏳️ Give up</button>
@@ -3280,7 +3357,7 @@ function submitGeoBingoGuess(index){
   if(correct){
     cat.marked = true;
     AudioFX.correct();
-    if(geoBingoHasLine(gs.categories)){
+    if(geoBingoBoardCleared(gs.categories)){
       gs.solved = true;
       finishGeoBingo();
       return;
@@ -3292,7 +3369,7 @@ function submitGeoBingoGuess(index){
   }
   gs.promptIndex++;
   if(gs.isDaily) persistGeoBingo();
-  if(gs.promptIndex >= gs.prompts.length){
+  if(gs.promptIndex >= GEOBINGO_PROMPT_BUDGET){
     gs.failed = true;
     finishGeoBingo();
     return;
@@ -3334,22 +3411,24 @@ function finishGeoBingo(){
     saveState();
   }
   AudioFX[gs.solved ? 'win' : 'lose']();
+  if(gs.solved) fireConfetti();
   renderGeoBingoResult({ categories: gs.categories, solved: gs.solved, isDaily: gs.isDaily, promptsUsed: gs.promptIndex, misses: gs.misses });
 }
 
 function renderGeoBingoResult(ctx){
   const { categories, solved, isDaily, promptsUsed, misses } = ctx;
   const gridHtml = categories.map(c => `<div class="gb-cell ${c.marked ? 'marked' : ''}" style="cursor:default;">${c.label}</div>`).join("");
+  const cleared = categories.filter(c => c.marked).length;
   main.innerHTML = `
     <div class="card center" style="border-color:${solved ? 'var(--green)' : 'var(--red)'};border-width:2px;">
       <div style="font-size:44px;line-height:1;">${solved ? '🎉' : '💔'}</div>
-      <h2 style="color:${solved ? 'var(--green)' : 'var(--red)'};font-size:24px;margin-top:6px;">${solved ? 'Bingo!' : 'No line completed'}</h2>
+      <h2 style="color:${solved ? 'var(--green)' : 'var(--red)'};font-size:24px;margin-top:6px;">${solved ? 'Board cleared!' : 'Board not cleared'}</h2>
       <p class="sub">${solved
-        ? `Completed a line using ${promptsUsed} location${promptsUsed===1?'':'s'}, ${misses} wrong pick${misses===1?'':'s'}.`
-        : `Ran out of locations — ${misses} wrong pick${misses===1?'':'s'} along the way.`}</p>
+        ? `Filled all 16 squares using ${promptsUsed} location${promptsUsed===1?'':'s'}, ${misses} wrong pick${misses===1?'':'s'}.`
+        : `${cleared}/16 squares filled — ran out of locations (${GEOBINGO_PROMPT_BUDGET} max), ${misses} wrong pick${misses===1?'':'s'} along the way.`}</p>
     </div>
     <div class="card"><div class="gb-grid">${gridHtml}</div></div>
-    <button class="btn btn-primary btn-block" onclick="shareGeoBingoResult(${!!solved}, ${promptsUsed}, ${misses}, ${!!isDaily})">📤 Share result</button>
+    <button class="btn btn-primary btn-block" onclick="shareGeoBingoResult(${!!solved}, ${promptsUsed}, ${misses}, ${!!isDaily}, ${cleared})">📤 Share result</button>
     ${isDaily ? `<p class="sub" style="text-align:center;margin-top:10px;">Come back tomorrow for a new card${state.premium ? ', or practice with a fresh one right now.' : '.'}</p>` : ''}
     ${!isDaily ? `<button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="startGeoBingo(false)">🧪 Another practice card</button>` : ''}
     ${isDaily && state.premium ? `<button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="startGeoBingo(false)">🧪 Practice (fresh card)</button>` : ''}
@@ -3357,8 +3436,8 @@ function renderGeoBingoResult(ctx){
   `;
 }
 
-function shareGeoBingoResult(solved, promptsUsed, misses, isDaily){
-  const text = `🎯 Geo-Bingo ${isDaily ? '#' + geoBingoDayIndex() : '(practice)'}\n${solved ? '🎉 BINGO' : '❌ No line'} in ${promptsUsed} location${promptsUsed===1?'':'s'} · ${misses} miss${misses===1?'':'es'}`;
+function shareGeoBingoResult(solved, promptsUsed, misses, isDaily, cleared){
+  const text = `🎯 Geo-Bingo ${isDaily ? '#' + geoBingoDayIndex() : '(practice)'}\n${solved ? '🎉 BOARD CLEARED' : `❌ ${cleared}/16 squares`} in ${promptsUsed} location${promptsUsed===1?'':'s'} · ${misses} miss${misses===1?'':'es'}`;
   AudioFX.click();
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(text)
@@ -3379,26 +3458,26 @@ function shareGeoBingoResult(solved, promptsUsed, misses, isDaily){
    surveyed/legal borders.
    ========================================================= */
 const MAPSTER_COUNTRIES = [
-  { id:"USA", name:"United States", w:100.0, h:52.9, pts:[[51.75,0.0],[70.24,6.26],[73.0,8.79],[72.76,16.79],[86.31,9.55],[92.13,9.53],[96.06,4.22],[100.0,9.96],[94.54,12.41],[94.8,16.87],[85.16,21.52],[84.45,26.49],[83.74,22.28],[82.63,24.26],[84.82,30.11],[75.1,39.06],[76.24,52.9],[70.31,41.99],[51.97,43.32],[47.05,51.24],[41.11,43.54],[35.94,43.78],[31.49,38.37],[13.1,36.67],[7.04,32.16],[0.5,19.75],[0.0,2.62],[3.64,4.99],[3.2,0.85]] },
-  { id:"ITA", name:"Italy", w:93.17, h:100.0, pts:[[44.3,3.78],[55.75,6.58],[56.8,16.56],[43.92,18.83],[46.0,32.85],[66.45,56.05],[72.72,55.98],[72.43,60.55],[93.17,75.45],[91.67,79.34],[80.27,72.48],[76.9,79.51],[82.69,83.54],[81.74,89.2],[74.12,99.16],[70.78,100.0],[74.19,88.53],[68.62,76.76],[34.82,51.7],[26.87,34.71],[16.38,29.86],[4.74,37.16],[5.65,32.45],[1.31,31.07],[0.0,12.21],[17.0,11.71],[18.73,7.33],[28.18,6.86],[28.82,2.41],[42.51,0.0]] },
-  { id:"BRA", name:"Brazil", w:97.53, h:100.0, pts:[[40.65,90.9],[50.58,80.41],[45.19,70.75],[39.87,70.07],[39.12,55.22],[21.33,43.09],[21.49,38.47],[8.54,41.66],[0.0,32.73],[10.17,24.46],[10.36,9.05],[20.96,11.42],[26.38,7.8],[22.78,3.05],[34.22,0.0],[37.16,10.07],[52.29,8.0],[56.32,2.67],[58.63,13.64],[84.49,20.81],[97.53,32.27],[87.73,46.91],[82.09,69.67],[65.43,77.23],[51.21,100.0]] },
-  { id:"AUS", name:"Australia", w:100.0, h:78.55, pts:[[75.94,8.57],[80.5,11.95],[83.04,22.96],[100.0,42.65],[99.39,58.08],[92.11,74.09],[82.87,78.55],[68.6,75.74],[62.49,65.68],[59.03,68.1],[61.49,61.56],[56.91,67.07],[45.2,57.68],[11.77,67.56],[4.24,65.15],[5.91,58.0],[0.0,42.78],[2.04,30.7],[18.89,24.97],[31.02,9.87],[40.91,11.91],[47.79,1.27],[58.18,3.29],[55.69,11.99],[67.53,19.5],[73.31,0.0]] },
-  { id:"IND", name:"India", w:98.62, h:100.0, pts:[[32.6,0.0],[35.64,14.45],[43.65,19.29],[40.2,24.34],[51.05,29.53],[80.5,31.44],[94.29,21.95],[98.62,27.65],[82.66,48.87],[77.55,43.56],[81.66,38.21],[68.79,32.87],[69.89,50.14],[40.99,71.18],[39.42,91.31],[31.6,100.0],[15.03,51.36],[7.74,53.1],[0.0,42.87],[9.67,40.46],[4.51,31.07],[23.9,11.71],[18.81,4.27]] },
-  { id:"GBR", name:"United Kingdom", w:52.68, h:100.0, pts:[[21.16,0.0],[13.97,12.47],[28.19,10.95],[20.39,30.68],[27.35,31.41],[33.87,46.22],[38.48,48.08],[44.53,65.76],[52.68,67.96],[48.44,78.71],[51.12,84.68],[45.07,90.71],[21.48,91.51],[6.09,100.0],[2.51,97.7],[18.4,83.1],[5.94,76.58],[12.97,73.01],[9.28,66.8],[10.56,59.25],[20.57,60.29],[21.56,53.6],[8.78,44.31],[7.41,32.86],[3.79,38.32],[0.0,21.33],[7.67,0.06]] },
-  { id:"ESP", name:"Spain", w:100.0, h:81.73, pts:[[2.88,19.57],[3.29,12.11],[0.0,7.56],[11.38,0.0],[60.26,3.41],[78.27,12.25],[99.57,13.36],[100.0,19.45],[92.38,26.42],[82.07,28.64],[73.31,46.5],[76.45,52.49],[70.05,63.97],[63.98,66.06],[58.29,74.11],[40.41,74.08],[32.3,81.73],[14.93,66.21],[19.01,59.43],[16.24,56.32],[18.46,49.43],[15.24,43.15],[18.71,42.29],[20.44,27.63],[24.16,24.79],[21.91,19.54],[11.1,20.51],[9.08,15.38]] },
-  { id:"EGY", name:"Egypt", w:100.0, h:88.27, pts:[[84.02,19.19],[75.79,36.25],[69.35,29.17],[62.64,16.81],[77.3,50.12],[90.35,70.52],[88.72,72.13],[88.98,78.11],[100.0,88.27],[2.47,88.27],[2.47,21.61],[0.0,14.19],[2.12,8.51],[0.84,4.57],[3.82,0.15],[14.76,0.0],[34.63,6.59],[44.34,1.03],[51.59,0.27],[57.44,1.44],[59.68,6.0],[61.58,3.0],[74.58,5.69],[78.62,3.37]] },
-  { id:"ZAF", name:"South Africa", w:100.0, h:87.75, pts:[[92.06,49.37],[83.17,62.36],[67.45,76.76],[57.24,81.71],[37.79,81.16],[19.84,87.75],[12.33,83.04],[9.59,72.51],[11.38,65.96],[0.0,44.67],[2.91,41.26],[6.32,46.1],[12.86,47.91],[21.53,43.88],[21.54,18.39],[27.57,32.61],[31.91,31.91],[42.26,21.85],[47.72,24.62],[56.53,23.35],[58.21,17.9],[70.8,5.01],[81.86,0.0],[90.06,1.03],[94.54,15.64],[93.98,25.81],[89.17,25.04],[86.99,32.03],[90.61,35.77],[100.0,32.02],[97.77,42.77]] },
-  { id:"ARG", name:"Argentina", w:51.67, h:100.0, pts:[[22.09,0.8],[23.62,3.16],[27.63,0.66],[40.88,10.91],[38.68,17.34],[46.32,18.2],[50.41,12.17],[51.67,16.68],[41.27,27.47],[39.0,41.28],[43.46,49.38],[37.07,55.34],[28.96,55.69],[27.89,62.9],[21.69,63.02],[22.05,66.28],[26.03,67.93],[21.52,70.99],[20.52,76.04],[16.0,77.72],[15.25,80.18],[20.32,83.24],[11.18,94.7],[13.76,100.0],[3.92,98.88],[0.0,90.07],[5.73,75.21],[3.31,66.92],[9.4,40.51],[7.53,31.24],[13.38,16.6],[13.06,8.8],[18.67,0.0]] },
-  { id:"CHL", name:"Chile", w:19.38, h:100.0, pts:[[16.62,10.79],[19.38,14.9],[16.17,19.13],[16.45,25.69],[11.44,38.0],[13.04,45.8],[7.82,68.02],[9.9,74.99],[4.99,87.49],[8.35,94.91],[15.83,95.71],[9.43,100.0],[1.56,95.61],[0.08,85.71],[3.4,80.93],[0.0,80.13],[2.89,73.11],[5.38,74.08],[6.55,68.37],[2.94,70.69],[4.6,53.96],[9.41,40.91],[11.8,2.12],[13.55,0.0]] },
-  { id:"FRA", name:"France", w:98.77, h:100.0, pts:[[63.66,8.74],[98.77,24.2],[93.85,40.07],[88.16,40.96],[82.72,50.23],[82.61,55.37],[89.0,58.57],[90.97,66.05],[88.27,69.5],[93.6,84.66],[86.55,91.08],[59.87,91.69],[58.98,98.53],[49.96,100.0],[24.04,92.16],[20.94,87.74],[24.97,80.93],[26.45,58.3],[12.68,40.64],[0.78,36.27],[0.0,27.99],[23.16,28.44],[20.69,15.58],[28.04,20.46],[46.16,11.6],[48.49,2.29],[55.3,0.0]] },
-  { id:"TUR", name:"Turkey", w:100.0, h:42.93, pts:[[57.68,4.87],[76.26,7.09],[88.32,3.15],[93.5,6.54],[93.89,12.33],[100.0,16.06],[96.32,18.03],[99.89,33.61],[56.75,36.05],[53.58,42.93],[51.61,39.8],[53.64,37.2],[45.88,36.2],[42.18,40.18],[34.03,40.95],[23.9,37.01],[18.95,40.7],[7.9,37.15],[0.79,26.45],[3.4,21.08],[0.0,17.79],[5.96,11.18],[14.23,10.91],[16.48,5.66],[26.71,6.58],[39.43,0.15],[48.31,0.0]] },
-  { id:"SAU", name:"Saudi Arabia", w:100.0, h:82.46, pts:[[38.73,82.46],[29.98,66.09],[21.43,56.68],[18.35,44.18],[13.56,41.07],[2.37,21.37],[0.0,21.39],[1.54,14.62],[6.83,15.45],[16.0,8.62],[11.27,3.4],[21.69,0.0],[27.42,1.41],[47.91,15.55],[65.53,18.82],[73.78,28.53],[74.2,34.17],[79.67,39.28],[82.57,47.76],[97.82,49.29],[100.0,52.98],[96.83,63.41],[68.86,70.63],[58.8,79.32],[41.59,76.03]] },
-  { id:"NZL", name:"New Zealand", w:91.22, h:100.0, pts:[[76.75,6.92],[79.42,13.63],[87.8,7.04],[91.21,13.91],[91.22,20.76],[79.13,40.28],[73.1,46.82],[77.45,54.65],[68.36,54.85],[58.27,60.98],[48.41,88.09],[33.28,100.0],[22.42,99.65],[14.79,94.29],[1.98,93.15],[0.0,87.17],[6.33,75.11],[21.15,59.05],[28.76,55.99],[47.33,41.28],[54.41,32.84],[59.65,20.72],[64.11,16.6],[65.87,7.52],[74.13,0.0]] },
-  { id:"VNM", name:"Vietnam", w:45.81, h:100.0, pts:[[38.32,12.2],[29.62,18.0],[22.75,29.11],[43.71,54.74],[45.81,79.21],[19.47,100.0],[17.1,95.65],[18.94,91.06],[14.1,87.21],[26.58,83.99],[23.72,79.88],[34.68,74.67],[35.15,55.24],[19.06,31.76],[11.25,27.7],[17.28,23.49],[14.76,17.58],[6.73,17.53],[0.0,6.01],[20.59,0.0],[29.68,3.78],[28.65,7.69],[31.76,10.44]] },
-  { id:"MEX", name:"Mexico", w:100.0, h:65.46, pts:[[65.93,24.67],[64.09,38.97],[70.02,50.02],[74.89,52.48],[86.94,48.38],[88.56,42.2],[100.0,41.01],[96.62,52.07],[86.18,53.66],[87.95,59.95],[83.72,59.96],[82.14,65.46],[76.7,60.42],[67.85,61.45],[40.03,48.26],[36.61,35.81],[16.16,13.56],[13.13,5.58],[7.76,3.32],[8.09,9.21],[25.46,33.69],[23.41,35.64],[16.31,28.74],[15.92,24.16],[6.84,18.0],[9.78,14.96],[0.0,0.67],[7.94,0.0],[20.14,4.99],[35.03,3.48],[43.5,12.42],[53.34,12.03],[59.73,22.87]] },
-  { id:"JPN", name:"Japan", w:97.28, h:100.0, pts:[[90.2,40.94],[84.56,60.3],[60.89,65.44],[49.78,76.47],[44.54,72.76],[44.22,65.53],[12.3,72.4],[20.21,79.51],[15.0,95.93],[9.96,100.0],[6.19,96.24],[8.1,87.54],[0.0,78.1],[25.02,57.45],[48.88,56.54],[57.04,39.36],[62.24,43.98],[78.11,30.56],[83.01,18.74],[81.67,7.88],[84.97,1.77],[93.26,0.0],[97.28,21.24]] },
-  { id:"DEU", name:"Germany", w:73.75, h:100.0, pts:[[32.13,0.0],[32.27,5.03],[40.53,8.07],[40.44,12.69],[53.34,6.68],[62.56,11.82],[68.33,22.59],[66.05,26.06],[69.01,30.7],[73.75,50.47],[67.95,50.33],[51.06,61.41],[53.36,70.77],[62.14,79.5],[56.32,87.15],[56.72,97.85],[50.26,94.78],[37.21,96.56],[36.05,100.0],[20.7,93.12],[19.02,95.95],[12.07,95.86],[13.11,86.58],[17.24,77.67],[1.61,71.86],[0.0,40.77],[4.91,40.77],[6.98,35.87],[9.01,23.94],[7.49,19.54],[15.91,16.08],[17.42,18.95],[22.97,12.53],[20.73,0.27]] },
-  { id:"NOR", name:"Norway", w:85.97, h:100.0, pts:[[75.75,0.0],[85.97,5.58],[81.76,7.62],[85.35,12.42],[77.14,16.18],[78.53,10.83],[74.33,7.79],[69.26,10.38],[64.54,19.35],[53.13,13.85],[49.14,16.18],[48.66,21.2],[42.5,19.98],[41.63,24.22],[38.5,24.2],[27.99,48.82],[29.18,51.42],[28.05,54.45],[24.8,54.32],[22.68,61.47],[22.88,71.61],[24.97,75.47],[23.89,84.44],[19.73,94.07],[17.54,89.39],[11.08,98.21],[6.72,100.0],[2.2,96.11],[0.0,70.3],[18.09,51.12],[31.93,25.75],[46.39,10.44],[58.94,7.5],[63.92,1.18]] }
+  { id:"USA", name:"United States", w:100.0, h:52.9, capital:[82.55,22.82], pts:[[51.75,0.0],[70.24,6.26],[73.0,8.79],[72.76,16.79],[86.31,9.55],[92.13,9.53],[96.06,4.22],[100.0,9.96],[94.54,12.41],[94.8,16.87],[85.16,21.52],[84.45,26.49],[83.74,22.28],[82.63,24.26],[84.82,30.11],[75.1,39.06],[76.24,52.9],[70.31,41.99],[51.97,43.32],[47.05,51.24],[41.11,43.54],[35.94,43.78],[31.49,38.37],[13.1,36.67],[7.04,32.16],[0.5,19.75],[0.0,2.62],[3.64,4.99],[3.2,0.85]] },
+  { id:"ITA", name:"Italy", w:93.17, h:100.0, capital:[45.29,56.65], pts:[[44.3,3.78],[55.75,6.58],[56.8,16.56],[43.92,18.83],[46.0,32.85],[66.45,56.05],[72.72,55.98],[72.43,60.55],[93.17,75.45],[91.67,79.34],[80.27,72.48],[76.9,79.51],[82.69,83.54],[81.74,89.2],[74.12,99.16],[70.78,100.0],[74.19,88.53],[68.62,76.76],[34.82,51.7],[26.87,34.71],[16.38,29.86],[4.74,37.16],[5.65,32.45],[1.31,31.07],[0.0,12.21],[17.0,11.71],[18.73,7.33],[28.18,6.86],[28.82,2.41],[42.51,0.0]] },
+  { id:"BRA", name:"Brazil", w:97.53, h:100.0, capital:[64.86,53.92], pts:[[40.65,90.9],[50.58,80.41],[45.19,70.75],[39.87,70.07],[39.12,55.22],[21.33,43.09],[21.49,38.47],[8.54,41.66],[0.0,32.73],[10.17,24.46],[10.36,9.05],[20.96,11.42],[26.38,7.8],[22.78,3.05],[34.22,0.0],[37.16,10.07],[52.29,8.0],[56.32,2.67],[58.63,13.64],[84.49,20.81],[97.53,32.27],[87.73,46.91],[82.09,69.67],[65.43,77.23],[51.21,100.0]] },
+  { id:"AUS", name:"Australia", w:100.0, h:78.55, capital:[89.93,68.15], pts:[[75.94,8.57],[80.5,11.95],[83.04,22.96],[100.0,42.65],[99.39,58.08],[92.11,74.09],[82.87,78.55],[68.6,75.74],[62.49,65.68],[59.03,68.1],[61.49,61.56],[56.91,67.07],[45.2,57.68],[11.77,67.56],[4.24,65.15],[5.91,58.0],[0.0,42.78],[2.04,30.7],[18.89,24.97],[31.02,9.87],[40.91,11.91],[47.79,1.27],[58.18,3.29],[55.69,11.99],[67.53,19.5],[73.31,0.0]] },
+  { id:"IND", name:"India", w:98.62, h:100.0, capital:[30.48,25.01], pts:[[32.6,0.0],[35.64,14.45],[43.65,19.29],[40.2,24.34],[51.05,29.53],[80.5,31.44],[94.29,21.95],[98.62,27.65],[82.66,48.87],[77.55,43.56],[81.66,38.21],[68.79,32.87],[69.89,50.14],[40.99,71.18],[39.42,91.31],[31.6,100.0],[15.03,51.36],[7.74,53.1],[0.0,42.87],[9.67,40.46],[4.51,31.07],[23.9,11.71],[18.81,4.27]] },
+  { id:"GBR", name:"United Kingdom", w:52.68, h:100.0, capital:[40.5,82.13], pts:[[21.16,0.0],[13.97,12.47],[28.19,10.95],[20.39,30.68],[27.35,31.41],[33.87,46.22],[38.48,48.08],[44.53,65.76],[52.68,67.96],[48.44,78.71],[51.12,84.68],[45.07,90.71],[21.48,91.51],[6.09,100.0],[2.51,97.7],[18.4,83.1],[5.94,76.58],[12.97,73.01],[9.28,66.8],[10.56,59.25],[20.57,60.29],[21.56,53.6],[8.78,44.31],[7.41,32.86],[3.79,38.32],[0.0,21.33],[7.67,0.06]] },
+  { id:"ESP", name:"Spain", w:100.0, h:81.73, capital:[45.79,34.87], pts:[[2.88,19.57],[3.29,12.11],[0.0,7.56],[11.38,0.0],[60.26,3.41],[78.27,12.25],[99.57,13.36],[100.0,19.45],[92.38,26.42],[82.07,28.64],[73.31,46.5],[76.45,52.49],[70.05,63.97],[63.98,66.06],[58.29,74.11],[40.41,74.08],[32.3,81.73],[14.93,66.21],[19.01,59.43],[16.24,56.32],[18.46,49.43],[15.24,43.15],[18.71,42.29],[20.44,27.63],[24.16,24.79],[21.91,19.54],[11.1,20.51],[9.08,15.38]] },
+  { id:"EGY", name:"Egypt", w:100.0, h:88.27, capital:[53.76,14.23], pts:[[84.02,19.19],[75.79,36.25],[69.35,29.17],[62.64,16.81],[77.3,50.12],[90.35,70.52],[88.72,72.13],[88.98,78.11],[100.0,88.27],[2.47,88.27],[2.47,21.61],[0.0,14.19],[2.12,8.51],[0.84,4.57],[3.82,0.15],[14.76,0.0],[34.63,6.59],[44.34,1.03],[51.59,0.27],[57.44,1.44],[59.68,6.0],[61.58,3.0],[74.58,5.69],[78.62,3.37]] },
+  { id:"ZAF", name:"South Africa", w:100.0, h:87.75, capital:[71.85,25.17], pts:[[92.06,49.37],[83.17,62.36],[67.45,76.76],[57.24,81.71],[37.79,81.16],[19.84,87.75],[12.33,83.04],[9.59,72.51],[11.38,65.96],[0.0,44.67],[2.91,41.26],[6.32,46.1],[12.86,47.91],[21.53,43.88],[21.54,18.39],[27.57,32.61],[31.91,31.91],[42.26,21.85],[47.72,24.62],[56.53,23.35],[58.21,17.9],[70.8,5.01],[81.86,0.0],[90.06,1.03],[94.54,15.64],[93.98,25.81],[89.17,25.04],[86.99,32.03],[90.61,35.77],[100.0,32.02],[97.77,42.77]] },
+  { id:"ARG", name:"Argentina", w:51.67, h:100.0, capital:[39.3,41.84], pts:[[22.09,0.8],[23.62,3.16],[27.63,0.66],[40.88,10.91],[38.68,17.34],[46.32,18.2],[50.41,12.17],[51.67,16.68],[41.27,27.47],[39.0,41.28],[43.46,49.38],[37.07,55.34],[28.96,55.69],[27.89,62.9],[21.69,63.02],[22.05,66.28],[26.03,67.93],[21.52,70.99],[20.52,76.04],[16.0,77.72],[15.25,80.18],[20.32,83.24],[11.18,94.7],[13.76,100.0],[3.92,98.88],[0.0,90.07],[5.73,75.21],[3.31,66.92],[9.4,40.51],[7.53,31.24],[13.38,16.6],[13.06,8.8],[18.67,0.0]] },
+  { id:"CHL", name:"Chile", w:19.38, h:100.0, capital:[11.18,43.75], pts:[[16.62,10.79],[19.38,14.9],[16.17,19.13],[16.45,25.69],[11.44,38.0],[13.04,45.8],[7.82,68.02],[9.9,74.99],[4.99,87.49],[8.35,94.91],[15.83,95.71],[9.43,100.0],[1.56,95.61],[0.08,85.71],[3.4,80.93],[0.0,80.13],[2.89,73.11],[5.38,74.08],[6.55,68.37],[2.94,70.69],[4.6,53.96],[9.41,40.91],[11.8,2.12],[13.55,0.0]] },
+  { id:"FRA", name:"France", w:98.77, h:100.0, capital:[54.03,25.99], pts:[[63.66,8.74],[98.77,24.2],[93.85,40.07],[88.16,40.96],[82.72,50.23],[82.61,55.37],[89.0,58.57],[90.97,66.05],[88.27,69.5],[93.6,84.66],[86.55,91.08],[59.87,91.69],[58.98,98.53],[49.96,100.0],[24.04,92.16],[20.94,87.74],[24.97,80.93],[26.45,58.3],[12.68,40.64],[0.78,36.27],[0.0,27.99],[23.16,28.44],[20.69,15.58],[28.04,20.46],[46.16,11.6],[48.49,2.29],[55.3,0.0]] },
+  { id:"TUR", name:"Turkey", w:100.0, h:42.93, capital:[35.92,14.57], pts:[[57.68,4.87],[76.26,7.09],[88.32,3.15],[93.5,6.54],[93.89,12.33],[100.0,16.06],[96.32,18.03],[99.89,33.61],[56.75,36.05],[53.58,42.93],[51.61,39.8],[53.64,37.2],[45.88,36.2],[42.18,40.18],[34.03,40.95],[23.9,37.01],[18.95,40.7],[7.9,37.15],[0.79,26.45],[3.4,21.08],[0.0,17.79],[5.96,11.18],[14.23,10.91],[16.48,5.66],[26.71,6.58],[39.43,0.15],[48.31,0.0]] },
+  { id:"SAU", name:"Saudi Arabia", w:100.0, h:82.46, capital:[57.28,38.85], pts:[[38.73,82.46],[29.98,66.09],[21.43,56.68],[18.35,44.18],[13.56,41.07],[2.37,21.37],[0.0,21.39],[1.54,14.62],[6.83,15.45],[16.0,8.62],[11.27,3.4],[21.69,0.0],[27.42,1.41],[47.91,15.55],[65.53,18.82],[73.78,28.53],[74.2,34.17],[79.67,39.28],[82.57,47.76],[97.82,49.29],[100.0,52.98],[96.83,63.41],[68.86,70.63],[58.8,79.32],[41.59,76.03]] },
+  { id:"NZL", name:"New Zealand", w:91.22, h:100.0, capital:[91.21,13.91], pts:[[76.75,6.92],[79.42,13.63],[87.8,7.04],[91.21,13.91],[91.22,20.76],[79.13,40.28],[73.1,46.82],[77.45,54.65],[68.36,54.85],[58.27,60.98],[48.41,88.09],[33.28,100.0],[22.42,99.65],[14.79,94.29],[1.98,93.15],[0.0,87.17],[6.33,75.11],[21.15,59.05],[28.76,55.99],[47.33,41.28],[54.41,32.84],[59.65,20.72],[64.11,16.6],[65.87,7.52],[74.13,0.0]] },
+  { id:"VNM", name:"Vietnam", w:45.81, h:100.0, capital:[23.98,15.74], pts:[[38.32,12.2],[29.62,18.0],[22.75,29.11],[43.71,54.74],[45.81,79.21],[19.47,100.0],[17.1,95.65],[18.94,91.06],[14.1,87.21],[26.58,83.99],[23.72,79.88],[34.68,74.67],[35.15,55.24],[19.06,31.76],[11.25,27.7],[17.28,23.49],[14.76,17.58],[6.73,17.53],[0.0,6.01],[20.59,0.0],[29.68,3.78],[28.65,7.69],[31.76,10.44]] },
+  { id:"MEX", name:"Mexico", w:100.0, h:65.46, capital:[59.37,47.85], pts:[[65.93,24.67],[64.09,38.97],[70.02,50.02],[74.89,52.48],[86.94,48.38],[88.56,42.2],[100.0,41.01],[96.62,52.07],[86.18,53.66],[87.95,59.95],[83.72,59.96],[82.14,65.46],[76.7,60.42],[67.85,61.45],[40.03,48.26],[36.61,35.81],[16.16,13.56],[13.13,5.58],[7.76,3.32],[8.09,9.21],[25.46,33.69],[23.41,35.64],[16.31,28.74],[15.92,24.16],[6.84,18.0],[9.78,14.96],[0.0,0.67],[7.94,0.0],[20.14,4.99],[35.03,3.48],[43.5,12.42],[53.34,12.03],[59.73,22.87]] },
+  { id:"JPN", name:"Japan", w:97.28, h:100.0, capital:[79.85,55.06], pts:[[90.2,40.94],[84.56,60.3],[60.89,65.44],[49.78,76.47],[44.54,72.76],[44.22,65.53],[12.3,72.4],[20.21,79.51],[15.0,95.93],[9.96,100.0],[6.19,96.24],[8.1,87.54],[0.0,78.1],[25.02,57.45],[48.88,56.54],[57.04,39.36],[62.24,43.98],[78.11,30.56],[83.01,18.74],[81.67,7.88],[84.97,1.77],[93.26,0.0],[97.28,21.24]] },
+  { id:"DEU", name:"Germany", w:73.75, h:100.0, capital:[60.54,32.07], pts:[[32.13,0.0],[32.27,5.03],[40.53,8.07],[40.44,12.69],[53.34,6.68],[62.56,11.82],[68.33,22.59],[66.05,26.06],[69.01,30.7],[73.75,50.47],[67.95,50.33],[51.06,61.41],[53.36,70.77],[62.14,79.5],[56.32,87.15],[56.72,97.85],[50.26,94.78],[37.21,96.56],[36.05,100.0],[20.7,93.12],[19.02,95.95],[12.07,95.86],[13.11,86.58],[17.24,77.67],[1.61,71.86],[0.0,40.77],[4.91,40.77],[6.98,35.87],[9.01,23.94],[7.49,19.54],[15.91,16.08],[17.42,18.95],[22.97,12.53],[20.73,0.27]] },
+  { id:"NOR", name:"Norway", w:85.97, h:100.0, capital:[18.82,86.03], pts:[[75.75,0.0],[85.97,5.58],[81.76,7.62],[85.35,12.42],[77.14,16.18],[78.53,10.83],[74.33,7.79],[69.26,10.38],[64.54,19.35],[53.13,13.85],[49.14,16.18],[48.66,21.2],[42.5,19.98],[41.63,24.22],[38.5,24.2],[27.99,48.82],[29.18,51.42],[28.05,54.45],[24.8,54.32],[22.68,61.47],[22.88,71.61],[24.97,75.47],[23.89,84.44],[19.73,94.07],[17.54,89.39],[11.08,98.21],[6.72,100.0],[2.2,96.11],[0.0,70.3],[18.09,51.12],[31.93,25.75],[46.39,10.44],[58.94,7.5],[63.92,1.18]] }
 ];
 
 // ---- pure geometry helpers (no DOM — testable standalone) ----
@@ -3504,9 +3583,10 @@ function startMapster(isDaily){
   const offsetX = pad + (drawSpan - country.w * scale) / 2;
   const offsetY = pad + (drawSpan - country.h * scale) / 2;
   const targetCanvasPts = country.pts.map(p => [offsetX + p[0] * scale, offsetY + p[1] * scale]);
+  const capitalCanvasPt = country.capital ? [offsetX + country.capital[0] * scale, offsetY + country.capital[1] * scale] : null;
   mapsterState = {
     country, isDaily, dayIndex: dayIdx, canvasSize,
-    targetCanvasPts, strokes: [], redoStack: [], currentStroke: null, drawing: false,
+    targetCanvasPts, capitalCanvasPt, strokes: [], redoStack: [], currentStroke: null, drawing: false,
     eraseMode: false, hintsUsed, showFullActive: false, showFullTimer: null,
     completed: false, accuracy: null, canvas: null, ctx: null
   };
@@ -3535,7 +3615,7 @@ function renderMapsterRound(){
         <span class="badge ${ms.isDaily ? 'expert' : 'medium'}">${ms.isDaily ? '🗺️ Daily country' : '🧪 Practice'}</span>
       </div>
       <h2 style="text-align:center;margin:10px 0 0;">Sketch: ${ms.country.name}</h2>
-      <p class="sub" style="text-align:center;">Draw its borders from memory. Lift your finger/mouse and start again anywhere — everything ties together when you submit.</p>
+      <p class="sub" style="text-align:center;">Draw its borders from memory. Lift your finger/mouse and start again anywhere — everything ties together when you submit.${ms.capitalCanvasPt ? ` The <span style="color:#f87171;">🔴 red dot</span> marks the capital city, as a fixed reference point.` : ''}</p>
       <div class="ms-canvas-wrap"><canvas id="mapsterCanvas" width="${ms.canvasSize}" height="${ms.canvasSize}"></canvas></div>
       <div class="ms-toolbar">
         <button class="ms-tbtn" ${ms.strokes.length === 0 ? 'disabled' : ''} onclick="mapsterUndo()">↩ Undo</button>
@@ -3609,6 +3689,21 @@ function mapsterRedrawCanvas(){
   if(!ms || !ms.ctx) return;
   const ctx = ms.ctx;
   ctx.clearRect(0, 0, ms.canvasSize, ms.canvasSize);
+  // always-visible capital-city marker (a free, unlimited aid — unlike the
+  // two limited hints below) so players have at least one fixed reference
+  // point on the otherwise-blank canvas
+  if(ms.capitalCanvasPt){
+    const [cx, cy] = ms.capitalCanvasPt;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(248,113,113,.55)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#f87171";
+    ctx.fill();
+  }
   // permanent "Reveal Border" hint segments, drawn first so the player's
   // own strokes sit on top of them
   if(ms.hintsUsed.revealBorder > 0){
@@ -3738,6 +3833,7 @@ function submitMapster(){
     saveState();
   }
   AudioFX[result.accuracy >= 0.35 ? "win" : "lose"]();
+  if(result.accuracy >= 0.75) fireConfetti();
   renderMapsterResult({
     country: ms.country, accuracy: result.accuracy, isDaily: ms.isDaily, hintsUsed: ms.hintsUsed,
     userPts, targetPts: ms.targetCanvasPts, canvasSize: ms.canvasSize
@@ -3788,6 +3884,13 @@ function renderMapsterResult(ctx){
     rctx.strokeStyle = "#38bdf8";
     rctx.lineWidth = 2.5;
     rctx.stroke();
+  }
+  if(country.capital){
+    const cx = offsetX + country.capital[0] * scale, cy = offsetY + country.capital[1] * scale;
+    rctx.beginPath();
+    rctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+    rctx.fillStyle = "#f87171";
+    rctx.fill();
   }
 }
 
