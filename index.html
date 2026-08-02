@@ -339,6 +339,31 @@
   .cg-chip{background:rgba(56,189,248,.10);border:1.5px solid var(--accent);color:var(--text);border-radius:999px;padding:7px 13px;font-size:14px;font-weight:700;white-space:nowrap;}
   .cg-chip.good{background:rgba(52,211,153,.14);color:var(--green);border-color:var(--green);}
   .cg-chip.bad{background:rgba(248,113,113,.14);color:var(--red);border-color:var(--red);}
+  .gb-prompt{font-size:20px;font-weight:800;text-align:center;margin:14px 0 4px;}
+  .gb-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;}
+  .gb-cell{
+    background:var(--card-2);border:1.5px solid var(--border);border-radius:10px;
+    padding:8px 6px;font-size:11px;font-weight:700;text-align:center;color:var(--text);
+    cursor:pointer;min-height:56px;display:flex;align-items:center;justify-content:center;
+    line-height:1.25;font-family:inherit;
+  }
+  .gb-cell:disabled{cursor:default;}
+  .gb-cell.marked{border-color:var(--green);background:rgba(52,211,153,.14);color:var(--green);}
+  .ms-canvas-wrap{
+    position:relative;width:100%;aspect-ratio:1/1;max-width:420px;margin:10px auto 0;
+    background:var(--card-2);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;
+    touch-action:none;
+  }
+  .ms-canvas-wrap canvas{width:100%;height:100%;display:block;cursor:crosshair;}
+  .ms-toolbar{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;justify-content:center;}
+  .ms-tbtn{
+    background:var(--card-2);border:1.5px solid var(--border);border-radius:10px;color:var(--text);
+    font-family:inherit;font-size:12px;font-weight:700;padding:8px 10px;cursor:pointer;white-space:nowrap;
+  }
+  .ms-tbtn:disabled{opacity:.4;cursor:not-allowed;}
+  .ms-tbtn.on{border-color:var(--accent);color:var(--accent);background:rgba(56,189,248,.12);}
+  .ms-hint-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;justify-content:center;}
+  .ms-score-ring{font-size:40px;font-weight:800;line-height:1;}
   .ad-free-badge{
     display:inline-flex;
     align-items:center;
@@ -1320,7 +1345,11 @@ function defaultState(){
     blitzBestMs: null,
     survivalBest: null,
     countryGame: null,        // { dayIndex, guesses, solved, failed } — today's Guess the Country attempt
-    countryPracticeSolved: 0  // Premium-only practice puzzles solved (random countries, not the daily one)
+    countryPracticeSolved: 0, // Premium-only practice puzzles solved (random countries, not the daily one)
+    geoBingo: null,           // { dayIndex, markedKeys, promptIndex, solved, failed, misses } — today's Geo-Bingo card
+    geoBingoPracticeSolved: 0, // Premium-only practice bingos won (fresh random card, not the daily one)
+    mapster: null,            // { dayIndex, countryId, completed, accuracy, hintsUsed } — today's Mapster attempt
+    mapsterPracticeSolved: 0  // Premium-only practice sketches scored "Good" or better (not the daily one)
   };
 }
 const CONTINENTS = ["Africa","Asia","Europe","North America","South America","Oceania"];
@@ -1427,8 +1456,8 @@ function getDailyQuestion(){
    Checkout instead of the local "simulate" buttons.
    ========================================================= */
 const BACKEND = {
-  supabaseUrl: "https://ueijbtneoaaasnxpiiqt.supabase.co",     // e.g. "https://xxxxx.supabase.co"
-  supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlaWpidG5lb2FhYXNueHBpaXF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTE1MjcsImV4cCI6MjEwMTA2NzUyN30.XdZRCR0yrU9whP2OC8X2K-p14-t7IO6l0UNqfcBkvto"  // Supabase project's public "anon" key (safe to expose)
+  supabaseUrl: "",     // e.g. "https://xxxxx.supabase.co"
+  supabaseAnonKey: ""  // Supabase project's public "anon" key (safe to expose)
 };
 const backendEnabled = !!(BACKEND.supabaseUrl && BACKEND.supabaseAnonKey);
 let sb = null;
@@ -1619,6 +1648,8 @@ function showToast(msg){
 const NAV_ITEMS = [
   { id: "home",    icon: "🏠", label: "Home",    go: "goHome()" },
   { id: "guessgame", icon: "🌎", label: "Guess", go: "renderCountryGame()" },
+  { id: "geobingo", icon: "🎯", label: "Bingo", go: "renderGeoBingo()" },
+  { id: "mapster", icon: "🗺️", label: "Draw", go: "renderMapster()" },
   { id: "practice",icon: "🏆", label: "Compete", go: "renderLevels()" },
   { id: "duel",    icon: "⚔️", label: "Duel",     go: "state.premium ? renderDuelPicker() : renderPremium()" },
   { id: "bests",   icon: "🏅", label: "Bests",    go: "renderTopRounds()" },
@@ -1723,6 +1754,20 @@ function renderHome(){
       <h2 style="margin-top:8px;">🌎 Guess the Country</h2>
       <p class="sub">Wordle-style daily puzzle — 6 guesses to name a mystery country, with continent, size, population, direction, and ${rotatingStatForToday().label} hints after each try.</p>
       <button class="btn btn-primary btn-block" onclick="renderCountryGame()">▶ Play</button>
+    </div>
+
+    <div class="card" style="border-color:var(--gold);">
+      <span class="badge medium">New</span>
+      <h2 style="margin-top:8px;">🎯 Geo-Bingo</h2>
+      <p class="sub">A country or city appears one at a time — pick the one open square on your 4x4 card that's true for it. Complete a line before the locations run out.</p>
+      <button class="btn btn-primary btn-block" onclick="renderGeoBingo()">▶ Play</button>
+    </div>
+
+    <div class="card" style="border-color:var(--accent-2);">
+      <span class="badge medium">New</span>
+      <h2 style="margin-top:8px;">🗺️ Mapster</h2>
+      <p class="sub">You get a country's name and a blank canvas — freehand sketch its borders from memory, then submit to see how close you got. Two hints available if you get stuck.</p>
+      <button class="btn btn-primary btn-block" onclick="renderMapster()">▶ Play</button>
     </div>
 
     ${weakest ? `
@@ -2962,6 +3007,792 @@ function renderCountryResult(ctx){
 function shareCountryResult(solved, count, isDaily){
   const grid = Array.from({length:6}).map((_,i)=> i < count ? (i === count - 1 && solved ? "🟩" : "🟨") : "⬜").join("");
   const text = `🌎 Guess the Country ${isDaily ? '#' + countryDayIndex() : '(practice)'}\n${grid} ${solved ? count + '/6' : 'X/6'}`;
+  AudioFX.click();
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text)
+      .then(()=>showToast("📋 Result copied to clipboard!"))
+      .catch(()=>showToast("Copy failed — screenshot instead?"));
+  } else {
+    showToast("📋 " + text.replace(/\n/g, " · "));
+  }
+}
+
+
+/* =========================================================
+   GEO-BINGO
+   Mechanic researched from playfootball.games' Football Bingo
+   (search summary, Aug 2026): a random subject appears one at a
+   time; you pick exactly ONE still-open square on a 4x4 card that
+   correctly describes it — no retries on that subject, right or
+   wrong you move to the next one. The round ends when you complete
+   a bingo line (row/column/diagonal) or the subject pool runs out
+   first. Adapted here to geography: subjects are countries and
+   cities, squares are geographic/political facts.
+
+   DATA NOTES: like the trivia and country-guess datasets, this
+   uses a curated pool (not all 197 countries) of well-known
+   countries/cities specifically because the category facts below
+   (border lists, EU/eurozone/G7/G20 membership, official languages,
+   which sea a city touches) are hand-compiled from general
+   knowledge for accuracy on THIS pool, not verified against a live
+   source — same "best effort, recommend a pre-launch spot-check"
+   caveat as elsewhere. City population figures are metro-area
+   approximations, not city-proper figures, chosen to make the
+   "over 10 million" category unambiguous either way.
+   ========================================================= */
+
+// ---- static category-membership lists (stable geographic/political facts) ----
+const GB_BORDERS_CHINA = ["Russia","India","Pakistan","Mongolia","North Korea","Vietnam","Myanmar","Kazakhstan","Kyrgyzstan","Tajikistan","Nepal","Bhutan"];
+const GB_BORDERS_RUSSIA = ["China","Mongolia","Kazakhstan","North Korea","Poland","Finland","Norway"];
+const GB_BORDERS_USA = ["Canada","Mexico"];
+const GB_LANDLOCKED = ["Switzerland","Austria","Mongolia","Nepal","Bhutan","Ethiopia","Kazakhstan","Hungary","Czech Republic"];
+const GB_ISLAND_NATION = ["Japan","United Kingdom","Indonesia","New Zealand","Sri Lanka","Iceland","Ireland","Philippines","Madagascar","Cuba","Malta","Singapore"];
+const GB_CROSSES_EQUATOR = ["Brazil","Indonesia","Kenya","Ecuador","Colombia","DR Congo","Uganda","Somalia","Gabon"];
+const GB_MULTI_CONTINENTAL = ["Russia","Turkey","Egypt","Kazakhstan"];
+const GB_SPANISH_OFFICIAL = ["Spain","Mexico","Argentina","Colombia","Peru","Chile","Venezuela","Ecuador"];
+const GB_ENGLISH_OFFICIAL = ["United States","United Kingdom","Canada","Australia","New Zealand","India","Nigeria","South Africa","Kenya","Pakistan","Philippines","Ireland","Singapore"];
+const GB_EU_MEMBERS = ["Germany","France","Italy","Spain","Netherlands","Poland","Sweden","Portugal","Greece"];
+const GB_EUROZONE = ["Germany","France","Italy","Spain","Netherlands","Portugal","Greece"];
+const GB_FEDERAL = ["Germany","United States","Brazil","India","Russia","Mexico","Switzerland","Austria","Nigeria","Pakistan","Argentina","Australia","Canada"];
+const GB_G7 = ["United States","Canada","United Kingdom","France","Germany","Italy","Japan"];
+const GB_G20 = GB_G7.concat(["China","India","Russia","Brazil","Australia","South Korea","Indonesia","Saudi Arabia","Turkey","Mexico","South Africa","Argentina"]);
+const GB_DESERT = ["Egypt","China","United States","Australia","Chile","Mexico","Saudi Arabia","Kazakhstan","India","Pakistan","Peru","Argentina"];
+
+// ---- curated country pool (must be names present in COUNTRIES) ----
+const GEOBINGO_COUNTRY_POOL = [
+  "Egypt","Nigeria","South Africa","Kenya","Morocco","Ethiopia",
+  "China","India","Japan","Russia","Saudi Arabia","Indonesia","Turkey","Pakistan","South Korea","Thailand","Vietnam","Israel",
+  "Germany","France","United Kingdom","Italy","Spain","Netherlands","Switzerland","Sweden","Poland","Greece","Portugal",
+  "United States","Canada","Mexico",
+  "Brazil","Argentina","Chile","Peru","Colombia",
+  "Australia","New Zealand"
+];
+
+// ---- curated city pool (population = metro-area approximation) ----
+const GEOBINGO_CITIES = [
+  { name:"Cairo", country:"Egypt", isCapital:true, population:21000000, lat:30.0, sea:null, river:"Nile" },
+  { name:"Alexandria", country:"Egypt", isCapital:false, population:5200000, lat:31.2, sea:"Mediterranean", river:null },
+  { name:"London", country:"United Kingdom", isCapital:true, population:9000000, lat:51.5, sea:null, river:"Thames" },
+  { name:"New York City", country:"United States", isCapital:false, population:19000000, lat:40.7, sea:"Atlantic", river:null },
+  { name:"Los Angeles", country:"United States", isCapital:false, population:13000000, lat:34.0, sea:"Pacific", river:null },
+  { name:"Paris", country:"France", isCapital:true, population:11000000, lat:48.9, sea:null, river:"Seine" },
+  { name:"Rio de Janeiro", country:"Brazil", isCapital:false, population:13000000, lat:-22.9, sea:"Atlantic", river:null },
+  { name:"Sydney", country:"Australia", isCapital:false, population:5300000, lat:-33.9, sea:"Pacific", river:null },
+  { name:"Tokyo", country:"Japan", isCapital:true, population:37000000, lat:35.7, sea:"Pacific", river:null },
+  { name:"Bangkok", country:"Thailand", isCapital:true, population:10500000, lat:13.8, sea:null, river:"Chao Phraya" },
+  { name:"Istanbul", country:"Turkey", isCapital:false, population:15500000, lat:41.0, sea:null, river:null, spansContinents:true },
+  { name:"Moscow", country:"Russia", isCapital:true, population:12600000, lat:55.75, sea:null, river:"Moskva" },
+  { name:"Mumbai", country:"India", isCapital:false, population:21000000, lat:19.1, sea:"Indian", river:null },
+  { name:"Cape Town", country:"South Africa", isCapital:false, population:4700000, lat:-33.9, sea:"Atlantic", river:null },
+  { name:"Dubai", country:"United Arab Emirates", isCapital:false, population:3500000, lat:25.2, sea:"Indian", river:null },
+  { name:"Barcelona", country:"Spain", isCapital:false, population:5600000, lat:41.4, sea:"Mediterranean", river:null },
+  { name:"Venice", country:"Italy", isCapital:false, population:260000, lat:45.4, sea:"Mediterranean", river:null },
+  { name:"Vancouver", country:"Canada", isCapital:false, population:2600000, lat:49.3, sea:"Pacific", river:null },
+  { name:"Berlin", country:"Germany", isCapital:true, population:3700000, lat:52.5, sea:null, river:"Spree" },
+  { name:"Buenos Aires", country:"Argentina", isCapital:true, population:15000000, lat:-34.6, sea:"Atlantic", river:null }
+];
+
+// ---- category definitions: { key, label, test(prompt) } ----
+// `prompt` is either a country object from COUNTRIES (type:'country') or a
+// GEOBINGO_CITIES entry enriched with its resolved country (type:'city').
+function gbCountryName(prompt){ return prompt.type === 'city' ? prompt.country : prompt.name; }
+function gbCountryObj(prompt){ return prompt.type === 'city' ? prompt.countryObj : prompt; }
+function gbLat(prompt){ return prompt.type === 'city' ? prompt.lat : prompt.lat; } // both have .lat
+
+const GEOBINGO_CATEGORIES = [
+  { key:"landlocked", label:"Landlocked Country", test:p => GB_LANDLOCKED.includes(gbCountryName(p)) },
+  { key:"island", label:"Island Nation", test:p => GB_ISLAND_NATION.includes(gbCountryName(p)) },
+  { key:"bordersChina", label:"Borders China", test:p => GB_BORDERS_CHINA.includes(gbCountryName(p)) },
+  { key:"bordersRussia", label:"Borders Russia", test:p => GB_BORDERS_RUSSIA.includes(gbCountryName(p)) },
+  { key:"bordersUSA", label:"Borders the USA", test:p => GB_BORDERS_USA.includes(gbCountryName(p)) },
+  { key:"crossesEquator", label:"Crosses the Equator", test:p => GB_CROSSES_EQUATOR.includes(gbCountryName(p)) },
+  { key:"multiContinental", label:"Spans Two Continents", test:p => GB_MULTI_CONTINENTAL.includes(gbCountryName(p)) || !!p.spansContinents },
+  { key:"desert", label:"Contains a Desert", test:p => GB_DESERT.includes(gbCountryName(p)) },
+  { key:"southernHemi", label:"Southern Hemisphere", test:p => gbLat(p) < 0 },
+  { key:"pop100m", label:"Country Population 100M+", test:p => (gbCountryObj(p).population || 0) >= 100000000 },
+  { key:"pop50m", label:"Country Population 50M+", test:p => (gbCountryObj(p).population || 0) >= 50000000 },
+  { key:"spanish", label:"Spanish is Official", test:p => GB_SPANISH_OFFICIAL.includes(gbCountryName(p)) },
+  { key:"english", label:"English is Official", test:p => GB_ENGLISH_OFFICIAL.includes(gbCountryName(p)) },
+  { key:"eu", label:"Member of the EU", test:p => GB_EU_MEMBERS.includes(gbCountryName(p)) },
+  { key:"euro", label:"Uses the Euro", test:p => GB_EUROZONE.includes(gbCountryName(p)) },
+  { key:"federal", label:"Federal Republic", test:p => GB_FEDERAL.includes(gbCountryName(p)) },
+  { key:"g7", label:"G7 Member", test:p => GB_G7.includes(gbCountryName(p)) },
+  { key:"g20", label:"G20 Member", test:p => GB_G20.includes(gbCountryName(p)) },
+  { key:"seaMed", label:"Touches the Mediterranean", test:p => p.type === 'city' && p.sea === 'Mediterranean' },
+  { key:"seaAtlantic", label:"Touches the Atlantic", test:p => p.type === 'city' && p.sea === 'Atlantic' },
+  { key:"seaPacific", label:"Touches the Pacific", test:p => p.type === 'city' && p.sea === 'Pacific' },
+  { key:"seaIndian", label:"Touches the Indian Ocean", test:p => p.type === 'city' && p.sea === 'Indian' },
+  { key:"river", label:"Crossed by a Major River", test:p => p.type === 'city' && !!p.river },
+  { key:"capitalCity", label:"National Capital City", test:p => p.type === 'city' && !!p.isCapital },
+  { key:"cityPop10m", label:"City Population 10M+", test:p => p.type === 'city' && (p.population || 0) >= 10000000 },
+  { key:"contAfrica", label:"Located in Africa", test:p => gbCountryObj(p).continent === "Africa" },
+  { key:"contAsia", label:"Located in Asia", test:p => gbCountryObj(p).continent === "Asia" },
+  { key:"contEurope", label:"Located in Europe", test:p => gbCountryObj(p).continent === "Europe" },
+  { key:"contNAmerica", label:"Located in North America", test:p => gbCountryObj(p).continent === "North America" },
+  { key:"contSAmerica", label:"Located in South America", test:p => gbCountryObj(p).continent === "South America" },
+  { key:"contOceania", label:"Located in Oceania", test:p => gbCountryObj(p).continent === "Oceania" }
+];
+
+// ---- build the full prompt pool once, each prompt carrying its computed set of true category keys ----
+const GEOBINGO_PROMPTS = (function(){
+  const list = [];
+  GEOBINGO_COUNTRY_POOL.forEach(name => {
+    const c = COUNTRIES.find(x => x.name === name);
+    if(!c) return;
+    list.push(Object.assign({ type:'country' }, c));
+  });
+  GEOBINGO_CITIES.forEach(city => {
+    const countryObj = COUNTRIES.find(x => x.name === city.country) || {};
+    list.push(Object.assign({ type:'city', countryObj }, city));
+  });
+  list.forEach(p => {
+    p.facts = new Set(GEOBINGO_CATEGORIES.filter(cat => { try{ return cat.test(p); }catch(e){ return false; } }).map(cat => cat.key));
+  });
+  return list;
+})();
+
+// ---- small seeded RNG so the daily card/prompt order is identical for every player ----
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function seededShuffle(arr, rng){
+  const a = arr.slice();
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function geoBingoDayIndex(){
+  const d = new Date();
+  return Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 86400000);
+}
+// Picks 16 categories that have a reasonable mix of true/false across the
+// pool (avoids an all-true or all-false square, which would be unwinnable
+// or trivial) and a shuffled order of prompts to draw from.
+function buildGeoBingoPuzzle(seed){
+  const rng = mulberry32(seed);
+  const viable = GEOBINGO_CATEGORIES.filter(cat => {
+    const trueCount = GEOBINGO_PROMPTS.filter(p => p.facts.has(cat.key)).length;
+    return trueCount >= 3 && trueCount <= GEOBINGO_PROMPTS.length - 3;
+  });
+  const categories = seededShuffle(viable, rng).slice(0, 16).map(c => ({ key:c.key, label:c.label, marked:false }));
+  const prompts = seededShuffle(GEOBINGO_PROMPTS, rng);
+  return { categories, prompts };
+}
+const GB_LINES = [
+  [0,1,2,3],[4,5,6,7],[8,9,10,11],[12,13,14,15],
+  [0,4,8,12],[1,5,9,13],[2,6,10,14],[3,7,11,15],
+  [0,5,10,15],[3,6,9,12]
+];
+function geoBingoHasLine(categories){
+  return GB_LINES.some(line => line.every(i => categories[i] && categories[i].marked));
+}
+
+let geoBingoState = null;
+
+function renderGeoBingo(){
+  setActiveNav("geobingo");
+  const dayIdx = geoBingoDayIndex();
+  const persisted = state.geoBingo;
+  const playedToday = !!(persisted && persisted.dayIndex === dayIdx);
+  if(playedToday && (persisted.solved || persisted.failed)){
+    const puzzle = buildGeoBingoPuzzle(dayIdx);
+    puzzle.categories.forEach(c => { c.marked = persisted.markedKeys.includes(c.key); });
+    renderGeoBingoResult({ categories: puzzle.categories, solved: persisted.solved, isDaily: true, promptsUsed: persisted.promptIndex, misses: persisted.misses || 0 });
+    return;
+  }
+  main.innerHTML = `
+    <div class="card center">
+      <h2>🎯 Geo-Bingo</h2>
+      <p class="sub">A country or city appears one at a time — pick the ONE open square on your 4x4 card that's true for it. Complete a row, column, or diagonal before the locations run out.</p>
+      <button class="btn btn-primary btn-block" onclick="startGeoBingo(true)">${playedToday ? "▶ Continue today's card" : "▶ Play today's card"}</button>
+      ${state.premium
+        ? `<button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="startGeoBingo(false)">🧪 Practice (fresh card)</button>`
+        : `<p class="sub" style="margin-top:10px;">🔒 Unlimited practice cards are a Premium perk. <a href="javascript:void(0)" onclick="renderPremium()" style="color:var(--accent);">See plans →</a></p>`}
+      ${state.geoBingoPracticeSolved ? `<p class="sub" style="margin-top:8px;font-size:12px;">🧪 Practice bingos won: ${state.geoBingoPracticeSolved}</p>` : ''}
+    </div>
+    <button class="btn btn-outline btn-block" onclick="goHome()">← Back home</button>
+  `;
+}
+
+function startGeoBingo(isDaily){
+  const dayIdx = geoBingoDayIndex();
+  if(isDaily){
+    const persisted = state.geoBingo;
+    if(persisted && persisted.dayIndex === dayIdx && (persisted.solved || persisted.failed)){
+      renderGeoBingo();
+      return;
+    }
+    const puzzle = buildGeoBingoPuzzle(dayIdx);
+    let promptIndex = 0, misses = 0;
+    if(persisted && persisted.dayIndex === dayIdx){
+      puzzle.categories.forEach(c => { c.marked = persisted.markedKeys.includes(c.key); });
+      promptIndex = persisted.promptIndex || 0;
+      misses = persisted.misses || 0;
+    }
+    geoBingoState = { categories: puzzle.categories, prompts: puzzle.prompts, promptIndex, isDaily:true, dayIndex:dayIdx, solved:false, failed:false, misses };
+  } else {
+    if(!state.premium){ renderPremium(); return; }
+    const seed = Math.floor(Math.random() * 2147483647);
+    const puzzle = buildGeoBingoPuzzle(seed);
+    geoBingoState = { categories: puzzle.categories, prompts: puzzle.prompts, promptIndex:0, isDaily:false, dayIndex:dayIdx, solved:false, failed:false, misses:0 };
+  }
+  AudioFX.click();
+  renderGeoBingoRound();
+}
+
+function renderGeoBingoRound(){
+  const gs = geoBingoState;
+  if(!gs){ renderGeoBingo(); return; }
+  if(gs.promptIndex >= gs.prompts.length){ gs.failed = true; finishGeoBingo(); return; }
+  const prompt = gs.prompts[gs.promptIndex];
+  const promptLabel = prompt.type === 'city' ? `${prompt.name}, ${prompt.country}` : prompt.name;
+  const gridHtml = gs.categories.map((c,i) => `
+    <button class="gb-cell ${c.marked ? 'marked' : ''}" ${c.marked ? 'disabled' : ''} onclick="submitGeoBingoGuess(${i})">${c.label}</button>
+  `).join("");
+  main.innerHTML = `
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <span class="badge ${gs.isDaily ? 'expert' : 'medium'}">${gs.isDaily ? '🎯 Daily card' : '🧪 Practice'}</span>
+        <span style="color:var(--text-dim);font-size:12px;">${gs.promptIndex+1}/${gs.prompts.length} locations</span>
+      </div>
+      <div class="gb-prompt">${prompt.type==='city' ? '🏙️' : '🌍'} ${promptLabel}</div>
+      <p class="sub" style="text-align:center;margin-top:-6px;">Pick the ONE open square that's true for this ${prompt.type === 'city' ? 'city' : 'country'}.</p>
+      <div class="gb-grid">${gridHtml}</div>
+    </div>
+    <button class="btn btn-outline btn-block" onclick="quitGeoBingo()">🏳️ Give up</button>
+  `;
+}
+
+function submitGeoBingoGuess(index){
+  const gs = geoBingoState;
+  if(!gs || gs.solved || gs.failed) return;
+  const cat = gs.categories[index];
+  if(!cat || cat.marked) return;
+  const prompt = gs.prompts[gs.promptIndex];
+  const correct = prompt.facts.has(cat.key);
+  if(correct){
+    cat.marked = true;
+    AudioFX.correct();
+    if(geoBingoHasLine(gs.categories)){
+      gs.solved = true;
+      finishGeoBingo();
+      return;
+    }
+  } else {
+    gs.misses++;
+    AudioFX.wrong();
+    showToast(`❌ Not quite — ${prompt.name} doesn't match "${cat.label}"`);
+  }
+  gs.promptIndex++;
+  if(gs.isDaily) persistGeoBingo();
+  if(gs.promptIndex >= gs.prompts.length){
+    gs.failed = true;
+    finishGeoBingo();
+    return;
+  }
+  renderGeoBingoRound();
+}
+
+function quitGeoBingo(){
+  const gs = geoBingoState;
+  if(!gs){ renderGeoBingo(); return; }
+  gs.failed = true;
+  AudioFX.click();
+  finishGeoBingo();
+}
+
+function persistGeoBingo(){
+  const gs = geoBingoState;
+  if(!gs || !gs.isDaily) return;
+  state.geoBingo = {
+    dayIndex: gs.dayIndex,
+    markedKeys: gs.categories.filter(c => c.marked).map(c => c.key),
+    promptIndex: gs.promptIndex,
+    solved: gs.solved,
+    failed: gs.failed,
+    misses: gs.misses
+  };
+  saveState();
+}
+
+/* Deliberately does NOT call addScore() — same reasoning as Guess the
+   Country and Blitz/Survival: this is a self-contained, locally tracked
+   side activity, so there's no risk of it silently desyncing a signed-in
+   player's server-authoritative score. */
+function finishGeoBingo(){
+  const gs = geoBingoState;
+  if(gs.isDaily) persistGeoBingo();
+  if(!gs.isDaily && gs.solved){
+    state.geoBingoPracticeSolved = (state.geoBingoPracticeSolved || 0) + 1;
+    saveState();
+  }
+  AudioFX[gs.solved ? 'win' : 'lose']();
+  renderGeoBingoResult({ categories: gs.categories, solved: gs.solved, isDaily: gs.isDaily, promptsUsed: gs.promptIndex, misses: gs.misses });
+}
+
+function renderGeoBingoResult(ctx){
+  const { categories, solved, isDaily, promptsUsed, misses } = ctx;
+  const gridHtml = categories.map(c => `<div class="gb-cell ${c.marked ? 'marked' : ''}" style="cursor:default;">${c.label}</div>`).join("");
+  main.innerHTML = `
+    <div class="card center" style="border-color:${solved ? 'var(--green)' : 'var(--red)'};border-width:2px;">
+      <div style="font-size:44px;line-height:1;">${solved ? '🎉' : '💔'}</div>
+      <h2 style="color:${solved ? 'var(--green)' : 'var(--red)'};font-size:24px;margin-top:6px;">${solved ? 'Bingo!' : 'No line completed'}</h2>
+      <p class="sub">${solved
+        ? `Completed a line using ${promptsUsed} location${promptsUsed===1?'':'s'}, ${misses} wrong pick${misses===1?'':'s'}.`
+        : `Ran out of locations — ${misses} wrong pick${misses===1?'':'s'} along the way.`}</p>
+    </div>
+    <div class="card"><div class="gb-grid">${gridHtml}</div></div>
+    <button class="btn btn-primary btn-block" onclick="shareGeoBingoResult(${!!solved}, ${promptsUsed}, ${misses}, ${!!isDaily})">📤 Share result</button>
+    ${isDaily ? `<p class="sub" style="text-align:center;margin-top:10px;">Come back tomorrow for a new card${state.premium ? ', or practice with a fresh one right now.' : '.'}</p>` : ''}
+    ${!isDaily ? `<button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="startGeoBingo(false)">🧪 Another practice card</button>` : ''}
+    ${isDaily && state.premium ? `<button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="startGeoBingo(false)">🧪 Practice (fresh card)</button>` : ''}
+    <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="goHome()">🏠 Home</button>
+  `;
+}
+
+function shareGeoBingoResult(solved, promptsUsed, misses, isDaily){
+  const text = `🎯 Geo-Bingo ${isDaily ? '#' + geoBingoDayIndex() : '(practice)'}\n${solved ? '🎉 BINGO' : '❌ No line'} in ${promptsUsed} location${promptsUsed===1?'':'s'} · ${misses} miss${misses===1?'':'es'}`;
+  AudioFX.click();
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text)
+      .then(()=>showToast("📋 Result copied to clipboard!"))
+      .catch(()=>showToast("Copy failed — screenshot instead?"));
+  } else {
+    showToast("📋 " + text.replace(/\n/g, " · "));
+  }
+}
+
+/* =========================================================
+   MAPSTER (freehand country-outline sketching game)
+   Real, simplified country border polygons (largest landmass
+   ring per country, Douglas-Peucker simplified to ~24-34
+   points, normalized to a 0-100 box preserving aspect ratio)
+   sourced from public GeoJSON boundary data. These are
+   approximate outlines meant for a casual drawing game, not
+   surveyed/legal borders.
+   ========================================================= */
+const MAPSTER_COUNTRIES = [
+  { id:"USA", name:"United States", w:100.0, h:52.9, pts:[[51.75,0.0],[70.24,6.26],[73.0,8.79],[72.76,16.79],[86.31,9.55],[92.13,9.53],[96.06,4.22],[100.0,9.96],[94.54,12.41],[94.8,16.87],[85.16,21.52],[84.45,26.49],[83.74,22.28],[82.63,24.26],[84.82,30.11],[75.1,39.06],[76.24,52.9],[70.31,41.99],[51.97,43.32],[47.05,51.24],[41.11,43.54],[35.94,43.78],[31.49,38.37],[13.1,36.67],[7.04,32.16],[0.5,19.75],[0.0,2.62],[3.64,4.99],[3.2,0.85]] },
+  { id:"ITA", name:"Italy", w:93.17, h:100.0, pts:[[44.3,3.78],[55.75,6.58],[56.8,16.56],[43.92,18.83],[46.0,32.85],[66.45,56.05],[72.72,55.98],[72.43,60.55],[93.17,75.45],[91.67,79.34],[80.27,72.48],[76.9,79.51],[82.69,83.54],[81.74,89.2],[74.12,99.16],[70.78,100.0],[74.19,88.53],[68.62,76.76],[34.82,51.7],[26.87,34.71],[16.38,29.86],[4.74,37.16],[5.65,32.45],[1.31,31.07],[0.0,12.21],[17.0,11.71],[18.73,7.33],[28.18,6.86],[28.82,2.41],[42.51,0.0]] },
+  { id:"BRA", name:"Brazil", w:97.53, h:100.0, pts:[[40.65,90.9],[50.58,80.41],[45.19,70.75],[39.87,70.07],[39.12,55.22],[21.33,43.09],[21.49,38.47],[8.54,41.66],[0.0,32.73],[10.17,24.46],[10.36,9.05],[20.96,11.42],[26.38,7.8],[22.78,3.05],[34.22,0.0],[37.16,10.07],[52.29,8.0],[56.32,2.67],[58.63,13.64],[84.49,20.81],[97.53,32.27],[87.73,46.91],[82.09,69.67],[65.43,77.23],[51.21,100.0]] },
+  { id:"AUS", name:"Australia", w:100.0, h:78.55, pts:[[75.94,8.57],[80.5,11.95],[83.04,22.96],[100.0,42.65],[99.39,58.08],[92.11,74.09],[82.87,78.55],[68.6,75.74],[62.49,65.68],[59.03,68.1],[61.49,61.56],[56.91,67.07],[45.2,57.68],[11.77,67.56],[4.24,65.15],[5.91,58.0],[0.0,42.78],[2.04,30.7],[18.89,24.97],[31.02,9.87],[40.91,11.91],[47.79,1.27],[58.18,3.29],[55.69,11.99],[67.53,19.5],[73.31,0.0]] },
+  { id:"IND", name:"India", w:98.62, h:100.0, pts:[[32.6,0.0],[35.64,14.45],[43.65,19.29],[40.2,24.34],[51.05,29.53],[80.5,31.44],[94.29,21.95],[98.62,27.65],[82.66,48.87],[77.55,43.56],[81.66,38.21],[68.79,32.87],[69.89,50.14],[40.99,71.18],[39.42,91.31],[31.6,100.0],[15.03,51.36],[7.74,53.1],[0.0,42.87],[9.67,40.46],[4.51,31.07],[23.9,11.71],[18.81,4.27]] },
+  { id:"GBR", name:"United Kingdom", w:52.68, h:100.0, pts:[[21.16,0.0],[13.97,12.47],[28.19,10.95],[20.39,30.68],[27.35,31.41],[33.87,46.22],[38.48,48.08],[44.53,65.76],[52.68,67.96],[48.44,78.71],[51.12,84.68],[45.07,90.71],[21.48,91.51],[6.09,100.0],[2.51,97.7],[18.4,83.1],[5.94,76.58],[12.97,73.01],[9.28,66.8],[10.56,59.25],[20.57,60.29],[21.56,53.6],[8.78,44.31],[7.41,32.86],[3.79,38.32],[0.0,21.33],[7.67,0.06]] },
+  { id:"ESP", name:"Spain", w:100.0, h:81.73, pts:[[2.88,19.57],[3.29,12.11],[0.0,7.56],[11.38,0.0],[60.26,3.41],[78.27,12.25],[99.57,13.36],[100.0,19.45],[92.38,26.42],[82.07,28.64],[73.31,46.5],[76.45,52.49],[70.05,63.97],[63.98,66.06],[58.29,74.11],[40.41,74.08],[32.3,81.73],[14.93,66.21],[19.01,59.43],[16.24,56.32],[18.46,49.43],[15.24,43.15],[18.71,42.29],[20.44,27.63],[24.16,24.79],[21.91,19.54],[11.1,20.51],[9.08,15.38]] },
+  { id:"EGY", name:"Egypt", w:100.0, h:88.27, pts:[[84.02,19.19],[75.79,36.25],[69.35,29.17],[62.64,16.81],[77.3,50.12],[90.35,70.52],[88.72,72.13],[88.98,78.11],[100.0,88.27],[2.47,88.27],[2.47,21.61],[0.0,14.19],[2.12,8.51],[0.84,4.57],[3.82,0.15],[14.76,0.0],[34.63,6.59],[44.34,1.03],[51.59,0.27],[57.44,1.44],[59.68,6.0],[61.58,3.0],[74.58,5.69],[78.62,3.37]] },
+  { id:"ZAF", name:"South Africa", w:100.0, h:87.75, pts:[[92.06,49.37],[83.17,62.36],[67.45,76.76],[57.24,81.71],[37.79,81.16],[19.84,87.75],[12.33,83.04],[9.59,72.51],[11.38,65.96],[0.0,44.67],[2.91,41.26],[6.32,46.1],[12.86,47.91],[21.53,43.88],[21.54,18.39],[27.57,32.61],[31.91,31.91],[42.26,21.85],[47.72,24.62],[56.53,23.35],[58.21,17.9],[70.8,5.01],[81.86,0.0],[90.06,1.03],[94.54,15.64],[93.98,25.81],[89.17,25.04],[86.99,32.03],[90.61,35.77],[100.0,32.02],[97.77,42.77]] },
+  { id:"ARG", name:"Argentina", w:51.67, h:100.0, pts:[[22.09,0.8],[23.62,3.16],[27.63,0.66],[40.88,10.91],[38.68,17.34],[46.32,18.2],[50.41,12.17],[51.67,16.68],[41.27,27.47],[39.0,41.28],[43.46,49.38],[37.07,55.34],[28.96,55.69],[27.89,62.9],[21.69,63.02],[22.05,66.28],[26.03,67.93],[21.52,70.99],[20.52,76.04],[16.0,77.72],[15.25,80.18],[20.32,83.24],[11.18,94.7],[13.76,100.0],[3.92,98.88],[0.0,90.07],[5.73,75.21],[3.31,66.92],[9.4,40.51],[7.53,31.24],[13.38,16.6],[13.06,8.8],[18.67,0.0]] },
+  { id:"CHL", name:"Chile", w:19.38, h:100.0, pts:[[16.62,10.79],[19.38,14.9],[16.17,19.13],[16.45,25.69],[11.44,38.0],[13.04,45.8],[7.82,68.02],[9.9,74.99],[4.99,87.49],[8.35,94.91],[15.83,95.71],[9.43,100.0],[1.56,95.61],[0.08,85.71],[3.4,80.93],[0.0,80.13],[2.89,73.11],[5.38,74.08],[6.55,68.37],[2.94,70.69],[4.6,53.96],[9.41,40.91],[11.8,2.12],[13.55,0.0]] },
+  { id:"FRA", name:"France", w:98.77, h:100.0, pts:[[63.66,8.74],[98.77,24.2],[93.85,40.07],[88.16,40.96],[82.72,50.23],[82.61,55.37],[89.0,58.57],[90.97,66.05],[88.27,69.5],[93.6,84.66],[86.55,91.08],[59.87,91.69],[58.98,98.53],[49.96,100.0],[24.04,92.16],[20.94,87.74],[24.97,80.93],[26.45,58.3],[12.68,40.64],[0.78,36.27],[0.0,27.99],[23.16,28.44],[20.69,15.58],[28.04,20.46],[46.16,11.6],[48.49,2.29],[55.3,0.0]] },
+  { id:"TUR", name:"Turkey", w:100.0, h:42.93, pts:[[57.68,4.87],[76.26,7.09],[88.32,3.15],[93.5,6.54],[93.89,12.33],[100.0,16.06],[96.32,18.03],[99.89,33.61],[56.75,36.05],[53.58,42.93],[51.61,39.8],[53.64,37.2],[45.88,36.2],[42.18,40.18],[34.03,40.95],[23.9,37.01],[18.95,40.7],[7.9,37.15],[0.79,26.45],[3.4,21.08],[0.0,17.79],[5.96,11.18],[14.23,10.91],[16.48,5.66],[26.71,6.58],[39.43,0.15],[48.31,0.0]] },
+  { id:"SAU", name:"Saudi Arabia", w:100.0, h:82.46, pts:[[38.73,82.46],[29.98,66.09],[21.43,56.68],[18.35,44.18],[13.56,41.07],[2.37,21.37],[0.0,21.39],[1.54,14.62],[6.83,15.45],[16.0,8.62],[11.27,3.4],[21.69,0.0],[27.42,1.41],[47.91,15.55],[65.53,18.82],[73.78,28.53],[74.2,34.17],[79.67,39.28],[82.57,47.76],[97.82,49.29],[100.0,52.98],[96.83,63.41],[68.86,70.63],[58.8,79.32],[41.59,76.03]] },
+  { id:"NZL", name:"New Zealand", w:91.22, h:100.0, pts:[[76.75,6.92],[79.42,13.63],[87.8,7.04],[91.21,13.91],[91.22,20.76],[79.13,40.28],[73.1,46.82],[77.45,54.65],[68.36,54.85],[58.27,60.98],[48.41,88.09],[33.28,100.0],[22.42,99.65],[14.79,94.29],[1.98,93.15],[0.0,87.17],[6.33,75.11],[21.15,59.05],[28.76,55.99],[47.33,41.28],[54.41,32.84],[59.65,20.72],[64.11,16.6],[65.87,7.52],[74.13,0.0]] },
+  { id:"VNM", name:"Vietnam", w:45.81, h:100.0, pts:[[38.32,12.2],[29.62,18.0],[22.75,29.11],[43.71,54.74],[45.81,79.21],[19.47,100.0],[17.1,95.65],[18.94,91.06],[14.1,87.21],[26.58,83.99],[23.72,79.88],[34.68,74.67],[35.15,55.24],[19.06,31.76],[11.25,27.7],[17.28,23.49],[14.76,17.58],[6.73,17.53],[0.0,6.01],[20.59,0.0],[29.68,3.78],[28.65,7.69],[31.76,10.44]] },
+  { id:"MEX", name:"Mexico", w:100.0, h:65.46, pts:[[65.93,24.67],[64.09,38.97],[70.02,50.02],[74.89,52.48],[86.94,48.38],[88.56,42.2],[100.0,41.01],[96.62,52.07],[86.18,53.66],[87.95,59.95],[83.72,59.96],[82.14,65.46],[76.7,60.42],[67.85,61.45],[40.03,48.26],[36.61,35.81],[16.16,13.56],[13.13,5.58],[7.76,3.32],[8.09,9.21],[25.46,33.69],[23.41,35.64],[16.31,28.74],[15.92,24.16],[6.84,18.0],[9.78,14.96],[0.0,0.67],[7.94,0.0],[20.14,4.99],[35.03,3.48],[43.5,12.42],[53.34,12.03],[59.73,22.87]] },
+  { id:"JPN", name:"Japan", w:97.28, h:100.0, pts:[[90.2,40.94],[84.56,60.3],[60.89,65.44],[49.78,76.47],[44.54,72.76],[44.22,65.53],[12.3,72.4],[20.21,79.51],[15.0,95.93],[9.96,100.0],[6.19,96.24],[8.1,87.54],[0.0,78.1],[25.02,57.45],[48.88,56.54],[57.04,39.36],[62.24,43.98],[78.11,30.56],[83.01,18.74],[81.67,7.88],[84.97,1.77],[93.26,0.0],[97.28,21.24]] },
+  { id:"DEU", name:"Germany", w:73.75, h:100.0, pts:[[32.13,0.0],[32.27,5.03],[40.53,8.07],[40.44,12.69],[53.34,6.68],[62.56,11.82],[68.33,22.59],[66.05,26.06],[69.01,30.7],[73.75,50.47],[67.95,50.33],[51.06,61.41],[53.36,70.77],[62.14,79.5],[56.32,87.15],[56.72,97.85],[50.26,94.78],[37.21,96.56],[36.05,100.0],[20.7,93.12],[19.02,95.95],[12.07,95.86],[13.11,86.58],[17.24,77.67],[1.61,71.86],[0.0,40.77],[4.91,40.77],[6.98,35.87],[9.01,23.94],[7.49,19.54],[15.91,16.08],[17.42,18.95],[22.97,12.53],[20.73,0.27]] },
+  { id:"NOR", name:"Norway", w:85.97, h:100.0, pts:[[75.75,0.0],[85.97,5.58],[81.76,7.62],[85.35,12.42],[77.14,16.18],[78.53,10.83],[74.33,7.79],[69.26,10.38],[64.54,19.35],[53.13,13.85],[49.14,16.18],[48.66,21.2],[42.5,19.98],[41.63,24.22],[38.5,24.2],[27.99,48.82],[29.18,51.42],[28.05,54.45],[24.8,54.32],[22.68,61.47],[22.88,71.61],[24.97,75.47],[23.89,84.44],[19.73,94.07],[17.54,89.39],[11.08,98.21],[6.72,100.0],[2.2,96.11],[0.0,70.3],[18.09,51.12],[31.93,25.75],[46.39,10.44],[58.94,7.5],[63.92,1.18]] }
+];
+
+// ---- pure geometry helpers (no DOM — testable standalone) ----
+function mapsterPointInPolygon(x, y, poly){
+  let inside = false;
+  for(let i = 0, j = poly.length - 1; i < poly.length; j = i++){
+    const xi = poly[i][0], yi = poly[i][1];
+    const xj = poly[j][0], yj = poly[j][1];
+    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if(intersect) inside = !inside;
+  }
+  return inside;
+}
+// "Disconnected strokes automatically tie together when you submit" — we
+// simply concatenate every stroke's points in the order they were drawn.
+// Ray-casting treats the resulting point list as an implicitly-closed
+// polygon (last point connects back to the first), so lifting the pen
+// mid-sketch and continuing elsewhere still produces one solid shape.
+function mapsterCloseStrokes(strokes){
+  const pts = [];
+  strokes.forEach(stroke => stroke.forEach(p => pts.push([p.x, p.y])));
+  return pts;
+}
+// Grades spatial accuracy via Intersection-over-Union: rasterize both the
+// player's closed shape and the real border onto the same grid and compare
+// how much they overlap. Robust to wobbly hand-drawn lines and to strokes
+// drawn in a different order/direction than the reference shape.
+function mapsterComputeAccuracy(userPts, targetPts, canvasSize, gridRes){
+  gridRes = gridRes || 48;
+  if(!userPts || userPts.length < 3) return { accuracy: 0, userArea: 0, targetArea: 0 };
+  const cell = canvasSize / gridRes;
+  let inter = 0, union = 0;
+  for(let gy = 0; gy < gridRes; gy++){
+    for(let gx = 0; gx < gridRes; gx++){
+      const cx = gx * cell + cell / 2;
+      const cy = gy * cell + cell / 2;
+      const inUser = mapsterPointInPolygon(cx, cy, userPts);
+      const inTarget = mapsterPointInPolygon(cx, cy, targetPts);
+      if(inUser || inTarget) union++;
+      if(inUser && inTarget) inter++;
+    }
+  }
+  return { accuracy: union > 0 ? inter / union : 0, userArea: inter, targetArea: union };
+}
+function mapsterGrade(acc){
+  if(acc >= 0.55) return { label: "🏆 Excellent!", color: "var(--green)" };
+  if(acc >= 0.35) return { label: "👍 Good shape!", color: "var(--accent)" };
+  if(acc >= 0.18) return { label: "🙂 Recognizable", color: "var(--gold)" };
+  return { label: "😅 Way off", color: "var(--red)" };
+}
+function mapsterDayIndex(){
+  const d = new Date();
+  return Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 86400000);
+}
+function getDailyMapsterCountry(dayIndex){
+  const rng = mulberry32(dayIndex + 90210); // offset so it doesn't mirror Geo-Bingo's daily pick
+  const idx = Math.floor(rng() * MAPSTER_COUNTRIES.length);
+  return MAPSTER_COUNTRIES[idx];
+}
+
+let mapsterState = null;
+
+function renderMapster(){
+  setActiveNav("mapster");
+  const dayIdx = mapsterDayIndex();
+  const persisted = state.mapster;
+  const playedToday = !!(persisted && persisted.dayIndex === dayIdx);
+  if(playedToday && persisted.completed){
+    const country = MAPSTER_COUNTRIES.find(c => c.id === persisted.countryId) || getDailyMapsterCountry(dayIdx);
+    renderMapsterResult({ country, accuracy: persisted.accuracy, isDaily: true, hintsUsed: persisted.hintsUsed || { showFull:0, revealBorder:0 }, userPts: null, targetPts: null, canvasSize: 300, reviewOnly: true });
+    return;
+  }
+  main.innerHTML = `
+    <div class="card center">
+      <h2>🗺️ Mapster</h2>
+      <p class="sub">You'll get a country's name and a blank canvas — no outline, no template. Sketch its borders from memory with your mouse or finger, then submit to see how close you got. Two hints if you get stuck: a brief peek at the full shape, or a permanent piece of the real border traced for you.</p>
+      <button class="btn btn-primary btn-block" onclick="startMapster(true)">${playedToday ? "▶ Continue today's country" : "▶ Play today's country"}</button>
+      ${state.premium
+        ? `<button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="startMapster(false)">🧪 Practice (random country)</button>`
+        : `<p class="sub" style="margin-top:10px;">🔒 Unlimited practice countries are a Premium perk. <a href="javascript:void(0)" onclick="renderPremium()" style="color:var(--accent);">See plans →</a></p>`}
+      ${state.mapsterPracticeSolved ? `<p class="sub" style="margin-top:8px;font-size:12px;">🧪 Practice sketches scored "Good" or better: ${state.mapsterPracticeSolved}</p>` : ''}
+    </div>
+    <button class="btn btn-outline btn-block" onclick="goHome()">← Back home</button>
+  `;
+}
+
+function startMapster(isDaily){
+  const dayIdx = mapsterDayIndex();
+  let country, hintsUsed = { showFull: 0, revealBorder: 0 };
+  if(isDaily){
+    const persisted = state.mapster;
+    if(persisted && persisted.dayIndex === dayIdx && persisted.completed){ renderMapster(); return; }
+    country = getDailyMapsterCountry(dayIdx);
+    if(persisted && persisted.dayIndex === dayIdx && persisted.countryId === country.id && persisted.hintsUsed){
+      hintsUsed = { showFull: persisted.hintsUsed.showFull || 0, revealBorder: persisted.hintsUsed.revealBorder || 0 };
+    }
+  } else {
+    if(!state.premium){ renderPremium(); return; }
+    country = MAPSTER_COUNTRIES[Math.floor(Math.random() * MAPSTER_COUNTRIES.length)];
+  }
+  const canvasSize = 300, pad = 24, drawSpan = canvasSize - pad * 2;
+  const scale = drawSpan / 100; // country.w/h are already normalized so the longer side is 100
+  const offsetX = pad + (drawSpan - country.w * scale) / 2;
+  const offsetY = pad + (drawSpan - country.h * scale) / 2;
+  const targetCanvasPts = country.pts.map(p => [offsetX + p[0] * scale, offsetY + p[1] * scale]);
+  mapsterState = {
+    country, isDaily, dayIndex: dayIdx, canvasSize,
+    targetCanvasPts, strokes: [], redoStack: [], currentStroke: null, drawing: false,
+    eraseMode: false, hintsUsed, showFullActive: false, showFullTimer: null,
+    completed: false, accuracy: null, canvas: null, ctx: null
+  };
+  AudioFX.click();
+  renderMapsterRound();
+}
+
+function persistMapsterProgress(){
+  const ms = mapsterState;
+  if(!ms || !ms.isDaily) return;
+  state.mapster = {
+    dayIndex: ms.dayIndex, countryId: ms.country.id,
+    completed: false, accuracy: null, hintsUsed: ms.hintsUsed
+  };
+  saveState();
+}
+
+function renderMapsterRound(){
+  const ms = mapsterState;
+  if(!ms){ renderMapster(); return; }
+  const showFullLeft = 3 - ms.hintsUsed.showFull;
+  const revealLeft = 3 - ms.hintsUsed.revealBorder;
+  main.innerHTML = `
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <span class="badge ${ms.isDaily ? 'expert' : 'medium'}">${ms.isDaily ? '🗺️ Daily country' : '🧪 Practice'}</span>
+      </div>
+      <h2 style="text-align:center;margin:10px 0 0;">Sketch: ${ms.country.name}</h2>
+      <p class="sub" style="text-align:center;">Draw its borders from memory. Lift your finger/mouse and start again anywhere — everything ties together when you submit.</p>
+      <div class="ms-canvas-wrap"><canvas id="mapsterCanvas" width="${ms.canvasSize}" height="${ms.canvasSize}"></canvas></div>
+      <div class="ms-toolbar">
+        <button class="ms-tbtn" ${ms.strokes.length === 0 ? 'disabled' : ''} onclick="mapsterUndo()">↩ Undo</button>
+        <button class="ms-tbtn" ${ms.redoStack.length === 0 ? 'disabled' : ''} onclick="mapsterRedo()">↪ Redo</button>
+        <button class="ms-tbtn ${ms.eraseMode ? 'on' : ''}" onclick="mapsterToggleEraser()">🧽 ${ms.eraseMode ? 'Erasing' : 'Eraser'}</button>
+        <button class="ms-tbtn" ${ms.strokes.length === 0 ? 'disabled' : ''} onclick="mapsterRestart()">🔄 Restart</button>
+      </div>
+      <div class="ms-hint-row">
+        <button class="ms-tbtn" ${showFullLeft <= 0 ? 'disabled' : ''} onclick="mapsterShowFullShape()">✨ Show Full Shape (${showFullLeft} left)</button>
+        <button class="ms-tbtn" ${revealLeft <= 0 ? 'disabled' : ''} onclick="mapsterRevealBorder()">📍 Reveal Border (${revealLeft} left)</button>
+      </div>
+      <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="submitMapster()">✅ Submit sketch</button>
+    </div>
+    <button class="btn btn-outline btn-block" onclick="quitMapster()">← Back</button>
+  `;
+  initMapsterCanvas();
+}
+
+function initMapsterCanvas(){
+  const ms = mapsterState;
+  const canvas = document.getElementById("mapsterCanvas");
+  if(!ms || !canvas) return;
+  ms.canvas = canvas;
+  ms.ctx = canvas.getContext("2d");
+  function getPos(e){
+    const rect = canvas.getBoundingClientRect();
+    const sx = canvas.width / rect.width, sy = canvas.height / rect.height;
+    return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy };
+  }
+  canvas.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+    const p = getPos(e);
+    if(ms.eraseMode){ mapsterEraseAt(p); return; }
+    ms.drawing = true;
+    ms.currentStroke = [p];
+    ms.strokes.push(ms.currentStroke);
+    ms.redoStack = [];
+  });
+  canvas.addEventListener("pointermove", e => {
+    if(!ms) return;
+    if(ms.eraseMode){ if(e.buttons === 1){ mapsterEraseAt(getPos(e)); } return; }
+    if(!ms.drawing || !ms.currentStroke) return;
+    e.preventDefault();
+    ms.currentStroke.push(getPos(e));
+    mapsterRedrawCanvas();
+  });
+  const endStroke = () => { ms.drawing = false; ms.currentStroke = null; };
+  canvas.addEventListener("pointerup", endStroke);
+  canvas.addEventListener("pointerleave", endStroke);
+  canvas.addEventListener("pointercancel", endStroke);
+  mapsterRedrawCanvas();
+}
+
+function mapsterEraseAt(p){
+  const ms = mapsterState;
+  if(!ms) return;
+  const R = 16;
+  for(let i = ms.strokes.length - 1; i >= 0; i--){
+    const stroke = ms.strokes[i];
+    if(stroke.some(pt => Math.hypot(pt.x - p.x, pt.y - p.y) < R)){
+      ms.strokes.splice(i, 1);
+      mapsterRedrawCanvas();
+      return;
+    }
+  }
+}
+
+function mapsterRedrawCanvas(){
+  const ms = mapsterState;
+  if(!ms || !ms.ctx) return;
+  const ctx = ms.ctx;
+  ctx.clearRect(0, 0, ms.canvasSize, ms.canvasSize);
+  // permanent "Reveal Border" hint segments, drawn first so the player's
+  // own strokes sit on top of them
+  if(ms.hintsUsed.revealBorder > 0){
+    const pts = ms.targetCanvasPts;
+    const chunk = Math.ceil(pts.length / 4);
+    ctx.strokeStyle = "#fbbf24";
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([6, 5]);
+    for(let q = 0; q < ms.hintsUsed.revealBorder; q++){
+      const seg = pts.slice(q * chunk, q * chunk + chunk + 1);
+      if(seg.length < 2) continue;
+      ctx.beginPath();
+      ctx.moveTo(seg[0][0], seg[0][1]);
+      for(let i = 1; i < seg.length; i++) ctx.lineTo(seg[i][0], seg[i][1]);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+  // temporary "Show Full Shape" overlay
+  if(ms.showFullActive){
+    const pts = ms.targetCanvasPts;
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for(let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+    ctx.fillStyle = "rgba(251,191,36,.12)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(251,191,36,.85)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  // the player's own drawing
+  ctx.strokeStyle = "#38bdf8";
+  ctx.fillStyle = "#38bdf8";
+  ctx.lineWidth = 3.5;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ms.strokes.forEach(stroke => {
+    if(stroke.length < 2){
+      if(stroke.length === 1){ ctx.beginPath(); ctx.arc(stroke[0].x, stroke[0].y, 2, 0, Math.PI * 2); ctx.fill(); }
+      return;
+    }
+    ctx.beginPath();
+    ctx.moveTo(stroke[0].x, stroke[0].y);
+    for(let i = 1; i < stroke.length; i++) ctx.lineTo(stroke[i].x, stroke[i].y);
+    ctx.stroke();
+  });
+}
+
+function mapsterUndo(){
+  const ms = mapsterState;
+  if(!ms || ms.strokes.length === 0) return;
+  ms.redoStack.push(ms.strokes.pop());
+  AudioFX.click();
+  renderMapsterRound();
+}
+function mapsterRedo(){
+  const ms = mapsterState;
+  if(!ms || ms.redoStack.length === 0) return;
+  ms.strokes.push(ms.redoStack.pop());
+  AudioFX.click();
+  renderMapsterRound();
+}
+function mapsterToggleEraser(){
+  const ms = mapsterState;
+  if(!ms) return;
+  ms.eraseMode = !ms.eraseMode;
+  renderMapsterRound();
+}
+function mapsterRestart(){
+  const ms = mapsterState;
+  if(!ms) return;
+  ms.strokes = [];
+  ms.redoStack = [];
+  AudioFX.click();
+  renderMapsterRound();
+}
+function mapsterShowFullShape(){
+  const ms = mapsterState;
+  if(!ms || ms.hintsUsed.showFull >= 3) return;
+  const durations = [5000, 4000, 3000];
+  const dur = durations[ms.hintsUsed.showFull];
+  ms.hintsUsed.showFull++;
+  ms.showFullActive = true;
+  persistMapsterProgress();
+  AudioFX.click();
+  renderMapsterRound();
+  clearTimeout(ms.showFullTimer);
+  ms.showFullTimer = setTimeout(() => {
+    if(mapsterState === ms){ ms.showFullActive = false; mapsterRedrawCanvas(); }
+  }, dur);
+}
+function mapsterRevealBorder(){
+  const ms = mapsterState;
+  if(!ms || ms.hintsUsed.revealBorder >= 3) return;
+  ms.hintsUsed.revealBorder++;
+  persistMapsterProgress();
+  AudioFX.click();
+  renderMapsterRound();
+}
+
+function quitMapster(){
+  mapsterState = null;
+  renderMapster();
+}
+
+/* Deliberately does NOT call addScore() — same reasoning as Guess the
+   Country and Geo-Bingo: this is a self-contained, locally tracked side
+   activity, so there's no risk of it silently desyncing a signed-in
+   player's server-authoritative score. In-progress strokes also aren't
+   persisted across a page reload (only the hint count and the final
+   result are) — kept simple like Blitz/Survival, since this is a casual
+   local mini-game rather than something account-critical. */
+function submitMapster(){
+  const ms = mapsterState;
+  if(!ms || ms.completed) return;
+  const userPts = mapsterCloseStrokes(ms.strokes);
+  if(userPts.length < 3){ showToast("✏️ Draw something first!"); return; }
+  const result = mapsterComputeAccuracy(userPts, ms.targetCanvasPts, ms.canvasSize);
+  ms.completed = true;
+  ms.accuracy = result.accuracy;
+  if(ms.isDaily){
+    state.mapster = { dayIndex: ms.dayIndex, countryId: ms.country.id, completed: true, accuracy: result.accuracy, hintsUsed: ms.hintsUsed };
+    saveState();
+  } else if(result.accuracy >= 0.35){
+    state.mapsterPracticeSolved = (state.mapsterPracticeSolved || 0) + 1;
+    saveState();
+  }
+  AudioFX[result.accuracy >= 0.35 ? "win" : "lose"]();
+  renderMapsterResult({
+    country: ms.country, accuracy: result.accuracy, isDaily: ms.isDaily, hintsUsed: ms.hintsUsed,
+    userPts, targetPts: ms.targetCanvasPts, canvasSize: ms.canvasSize
+  });
+}
+
+function renderMapsterResult(ctx){
+  const { country, accuracy, isDaily, hintsUsed, userPts, targetPts, canvasSize, reviewOnly } = ctx;
+  const grade = mapsterGrade(accuracy || 0);
+  const pct = Math.round((accuracy || 0) * 100);
+  main.innerHTML = `
+    <div class="card center" style="border-color:${grade.color};border-width:2px;">
+      <div class="ms-score-ring" style="color:${grade.color};">${pct}%</div>
+      <h2 style="color:${grade.color};font-size:22px;margin-top:6px;">${grade.label}</h2>
+      <p class="sub">${country.name} — match to the real border shape.</p>
+      ${reviewOnly ? `<p class="sub" style="font-size:12px;">Come back tomorrow for a new country.</p>` : ''}
+    </div>
+    <div class="card"><div class="ms-canvas-wrap"><canvas id="mapsterResultCanvas" width="${canvasSize}" height="${canvasSize}"></canvas></div></div>
+    <p class="sub" style="text-align:center;">🎯 Hints used: ${hintsUsed.showFull}/3 Show Full Shape · ${hintsUsed.revealBorder}/3 Reveal Border</p>
+    <button class="btn btn-primary btn-block" onclick="shareMapsterResult(${pct}, '${country.name.replace(/'/g, "\\'")}', ${!!isDaily})">📤 Share result</button>
+    ${isDaily ? `<p class="sub" style="text-align:center;margin-top:10px;">Come back tomorrow for a new country${state.premium ? ', or practice with a random one right now.' : '.'}</p>` : ''}
+    ${!isDaily ? `<button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="startMapster(false)">🧪 Another practice country</button>` : ''}
+    ${isDaily && state.premium ? `<button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="startMapster(false)">🧪 Practice (random country)</button>` : ''}
+    <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="goHome()">🏠 Home</button>
+  `;
+  const canvas = document.getElementById("mapsterResultCanvas");
+  if(!canvas) return;
+  const rctx = canvas.getContext("2d");
+  rctx.clearRect(0, 0, canvasSize, canvasSize);
+  const pad = 24, drawSpan = canvasSize - pad * 2, scale = drawSpan / 100;
+  const offsetX = pad + (drawSpan - country.w * scale) / 2;
+  const offsetY = pad + (drawSpan - country.h * scale) / 2;
+  const realPts = targetPts || country.pts.map(p => [offsetX + p[0] * scale, offsetY + p[1] * scale]);
+  rctx.beginPath();
+  rctx.moveTo(realPts[0][0], realPts[0][1]);
+  for(let i = 1; i < realPts.length; i++) rctx.lineTo(realPts[i][0], realPts[i][1]);
+  rctx.closePath();
+  rctx.strokeStyle = "#34d399";
+  rctx.lineWidth = 2.5;
+  rctx.stroke();
+  if(userPts && userPts.length >= 3){
+    rctx.beginPath();
+    rctx.moveTo(userPts[0][0], userPts[0][1]);
+    for(let i = 1; i < userPts.length; i++) rctx.lineTo(userPts[i][0], userPts[i][1]);
+    rctx.closePath();
+    rctx.fillStyle = "rgba(56,189,248,.22)";
+    rctx.fill();
+    rctx.strokeStyle = "#38bdf8";
+    rctx.lineWidth = 2.5;
+    rctx.stroke();
+  }
+}
+
+function shareMapsterResult(pct, countryName, isDaily){
+  const text = `🗺️ Mapster ${isDaily ? '#' + mapsterDayIndex() : '(practice)'}\n${countryName}: ${pct}% match`;
   AudioFX.click();
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(text)
